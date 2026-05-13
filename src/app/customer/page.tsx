@@ -9,12 +9,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Bell, Flame, Loader2, ArrowRight, ShoppingCart, Phone } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { db } from '@/lib/firebase';
+import { useFirestore, errorEmitter } from '@/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { FirestorePermissionError } from '@/firebase/errors';
 import Link from 'next/link';
 
 export default function CustomerDashboard() {
   const { toast } = useToast();
+  const firestore = useFirestore();
   const [step, setStep] = useState<'details' | 'map'>('details');
   const [isRinging, setIsRinging] = useState(false);
   const [location, setLocation] = useState({ lat: 31.9454, lng: 35.9284 });
@@ -51,31 +53,37 @@ export default function CustomerDashboard() {
     setStep('map');
   };
 
-  const handleRingBell = async () => {
+  const handleRingBell = () => {
+    if (!firestore) return;
     setIsRinging(true);
-    try {
-      await addDoc(collection(db, "requests"), {
-        ...formData,
-        lat: location.lat,
-        lng: location.lng,
-        status: 'pending',
-        timestamp: serverTimestamp(),
-      });
+    
+    const requestsRef = collection(firestore, "requests");
+    const requestData = {
+      ...formData,
+      lat: location.lat,
+      lng: location.lng,
+      status: 'pending',
+      timestamp: serverTimestamp(),
+    };
 
-      toast({
-        title: "تم رن الجرس! 🔔",
-        description: "تم إرسال موقعك وتفاصيل طلبك للسائقين القريبين.",
+    addDoc(requestsRef, requestData)
+      .then(() => {
+        toast({
+          title: "تم رن الجرس! 🔔",
+          description: "تم إرسال موقعك وتفاصيل طلبك للسائقين القريبين.",
+        });
+      })
+      .catch(async (err) => {
+        const permissionError = new FirestorePermissionError({
+          path: requestsRef.path,
+          operation: 'create',
+          requestResourceData: requestData,
+        });
+        errorEmitter.emit('permission-error', permissionError);
+      })
+      .finally(() => {
+        setIsRinging(false);
       });
-    } catch (error) {
-      console.error("Error sending request:", error);
-      toast({
-        variant: "destructive",
-        title: "خطأ",
-        description: "لم نتمكن من إرسال طلبك، يرجى المحاولة مرة أخرى.",
-      });
-    } finally {
-      setIsRinging(false);
-    }
   };
 
   if (step === 'details') {

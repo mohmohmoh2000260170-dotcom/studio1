@@ -6,16 +6,18 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Flame, ArrowRight, Truck, FileText, Phone, User } from 'lucide-react';
-import { db } from '@/lib/firebase';
+import { Truck, FileText, Phone, User } from 'lucide-react';
+import { useFirestore, errorEmitter } from '@/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
+import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 import Link from 'next/link';
 
 export default function DriverRegistration() {
   const router = useRouter();
   const { toast } = useToast();
+  const firestore = useFirestore();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
@@ -23,36 +25,44 @@ export default function DriverRegistration() {
     companyLicense: '',
   });
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name || !formData.phone || !formData.companyLicense) {
       toast({ variant: "destructive", title: "خطأ", description: "يرجى تعبئة جميع الحقول" });
       return;
     }
 
+    if (!firestore) return;
+
     setLoading(true);
-    try {
-      const docRef = await addDoc(collection(db, "drivers"), {
-        ...formData,
-        status: 'pending',
-        timestamp: serverTimestamp(),
+    const driversRef = collection(firestore, "drivers");
+    const driverData = {
+      ...formData,
+      status: 'pending',
+      timestamp: serverTimestamp(),
+    };
+
+    // Use the non-blocking pattern for Firestore mutations
+    addDoc(driversRef, driverData)
+      .then((docRef) => {
+        localStorage.setItem('driverId', docRef.id);
+        toast({
+          title: "تم إرسال الطلب بنجاح",
+          description: "طلبك قيد المراجعة من قبل الإدارة. سيتم تفعيل حسابك قريباً.",
+        });
+        router.push('/driver');
+      })
+      .catch(async (err) => {
+        const permissionError = new FirestorePermissionError({
+          path: 'drivers',
+          operation: 'create',
+          requestResourceData: driverData,
+        } satisfies SecurityRuleContext);
+        errorEmitter.emit('permission-error', permissionError);
+      })
+      .finally(() => {
+        setLoading(false);
       });
-      
-      // Store the registration ID in localStorage for simulation
-      localStorage.setItem('driverId', docRef.id);
-      
-      toast({
-        title: "تم إرسال الطلب بنجاح",
-        description: "طلبك قيد المراجعة من قبل الإدارة. سيتم تفعيل حسابك قريباً.",
-      });
-      
-      router.push('/driver');
-    } catch (error) {
-      console.error("Registration error:", error);
-      toast({ variant: "destructive", title: "خطأ", description: "فشل في تسجيل البيانات" });
-    } finally {
-      setLoading(false);
-    }
   };
 
   return (

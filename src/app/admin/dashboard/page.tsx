@@ -1,6 +1,7 @@
+
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -19,10 +20,11 @@ import {
   Truck,
   Bell
 } from 'lucide-react';
-import { db } from '@/lib/firebase';
-import { collection, query, where, onSnapshot, doc, updateDoc, orderBy } from 'firebase/firestore';
+import { useFirestore, useCollection, useMemoFirebase, errorEmitter } from '@/firebase';
+import { collection, query, where, doc, updateDoc, orderBy } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 interface PendingDriver {
   id: string;
@@ -46,72 +48,54 @@ interface ActiveRequest {
 export default function AdminDashboard() {
   const router = useRouter();
   const { toast } = useToast();
-  const [drivers, setDrivers] = useState<PendingDriver[]>([]);
-  const [requests, setRequests] = useState<ActiveRequest[]>([]);
-  const [loadingDrivers, setLoadingDrivers] = useState(true);
-  const [loadingRequests, setLoadingRequests] = useState(true);
+  const firestore = useFirestore();
 
   useEffect(() => {
     const isAdmin = localStorage.getItem('isAdmin');
     if (isAdmin !== 'true') {
       router.push('/admin');
-      return;
     }
+  }, [router]);
 
-    // Listen for pending drivers
-    const driversQuery = query(
-      collection(db, "drivers"),
+  const driversQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return query(
+      collection(firestore, "drivers"),
       where("status", "==", "pending")
     );
+  }, [firestore]);
 
-    const unsubscribeDrivers = onSnapshot(driversQuery, (querySnapshot) => {
-      const docs: PendingDriver[] = [];
-      querySnapshot.forEach((doc) => {
-        docs.push({ id: doc.id, ...doc.data() } as PendingDriver);
-      });
-      setDrivers(docs);
-      setLoadingDrivers(false);
-    });
-
-    // Listen for active requests
-    const requestsQuery = query(
-      collection(db, "requests"),
+  const requestsQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return query(
+      collection(firestore, "requests"),
       where("status", "==", "pending"),
       orderBy("timestamp", "desc")
     );
+  }, [firestore]);
 
-    const unsubscribeRequests = onSnapshot(requestsQuery, (querySnapshot) => {
-      const reqs: ActiveRequest[] = [];
-      querySnapshot.forEach((doc) => {
-        reqs.push({ id: doc.id, ...doc.data() } as ActiveRequest);
-      });
-      setRequests(reqs);
-      setLoadingRequests(false);
-    });
+  const { data: drivers, loading: loadingDrivers } = useCollection<PendingDriver>(driversQuery);
+  const { data: requests, loading: loadingRequests } = useCollection<ActiveRequest>(requestsQuery);
 
-    return () => {
-      unsubscribeDrivers();
-      unsubscribeRequests();
-    };
-  }, [router]);
-
-  const handleUpdateStatus = async (id: string, newStatus: 'approved' | 'rejected') => {
-    try {
-      await updateDoc(doc(db, "drivers", id), {
-        status: newStatus
+  const handleUpdateStatus = (id: string, newStatus: 'approved' | 'rejected') => {
+    if (!firestore) return;
+    
+    const driverRef = doc(firestore, "drivers", id);
+    updateDoc(driverRef, { status: newStatus })
+      .then(() => {
+        toast({
+          title: newStatus === 'approved' ? "تمت الموافقة" : "تم الرفض",
+          description: `تم تحديث حالة السائق بنجاح.`,
+        });
+      })
+      .catch(async (err) => {
+        const permissionError = new FirestorePermissionError({
+          path: driverRef.path,
+          operation: 'update',
+          requestResourceData: { status: newStatus },
+        });
+        errorEmitter.emit('permission-error', permissionError);
       });
-      toast({
-        title: newStatus === 'approved' ? "تمت الموافقة" : "تم الرفض",
-        description: `تم تحديث حالة السائق بنجاح.`,
-      });
-    } catch (error) {
-      console.error("Error updating driver:", error);
-      toast({
-        variant: "destructive",
-        title: "خطأ",
-        description: "لم نتمكن من تحديث الحالة.",
-      });
-    }
   };
 
   const handleLogout = () => {
@@ -139,11 +123,11 @@ export default function AdminDashboard() {
           <TabsList className="grid w-full grid-cols-2 h-12 bg-white border">
             <TabsTrigger value="drivers" className="text-base font-bold data-[state=active]:bg-primary data-[state=active]:text-white">
               <Truck className="w-4 h-4 ml-2" />
-              طلبات السائقين ({drivers.length})
+              طلبات السائقين ({(drivers || []).length})
             </TabsTrigger>
             <TabsTrigger value="requests" className="text-base font-bold data-[state=active]:bg-primary data-[state=active]:text-white">
               <Bell className="w-4 h-4 ml-2" />
-              طلبات العملاء النشطة ({requests.length})
+              طلبات العملاء النشطة ({(requests || []).length})
             </TabsTrigger>
           </TabsList>
 
@@ -157,7 +141,7 @@ export default function AdminDashboard() {
               <div className="flex justify-center py-20">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
               </div>
-            ) : drivers.length === 0 ? (
+            ) : !drivers || drivers.length === 0 ? (
               <Card className="border-dashed border-2 py-20 text-center">
                 <CardContent className="space-y-4">
                   <div className="bg-slate-100 p-4 rounded-full w-fit mx-auto">
@@ -230,7 +214,7 @@ export default function AdminDashboard() {
               <div className="flex justify-center py-20">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
               </div>
-            ) : requests.length === 0 ? (
+            ) : !requests || requests.length === 0 ? (
               <Card className="border-dashed border-2 py-20 text-center">
                 <CardContent className="space-y-4">
                   <div className="bg-slate-100 p-4 rounded-full w-fit mx-auto">

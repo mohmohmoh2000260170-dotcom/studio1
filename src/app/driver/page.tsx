@@ -6,8 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Flame, MapPin, Clock, ArrowRight, Truck, ShoppingCart, Phone, ExternalLink, ShieldAlert } from 'lucide-react';
-import { db } from '@/lib/firebase';
-import { collection, query, where, onSnapshot, orderBy, doc, getDoc } from 'firebase/firestore';
+import { useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase';
+import { collection, query, where, orderBy, doc } from 'firebase/firestore';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
@@ -29,54 +29,45 @@ interface DriverInfo {
 
 export default function DriverDashboard() {
   const router = useRouter();
-  const [requests, setRequests] = useState<GasRequest[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [driverInfo, setDriverInfo] = useState<DriverInfo | null>(null);
+  const firestore = useFirestore();
+  const [driverId, setDriverId] = useState<string | null>(null);
 
   useEffect(() => {
-    const checkAuth = async () => {
-      const driverId = localStorage.getItem('driverId');
-      if (!driverId) {
-        router.push('/driver/register');
-        return;
-      }
-
-      const driverDoc = await getDoc(doc(db, "drivers", driverId));
-      if (driverDoc.exists()) {
-        setDriverInfo(driverDoc.data() as DriverInfo);
-      } else {
-        localStorage.removeItem('driverId');
-        router.push('/driver/register');
-      }
-    };
-
-    checkAuth();
+    const id = localStorage.getItem('driverId');
+    if (!id) {
+      router.push('/driver/register');
+    } else {
+      setDriverId(id);
+    }
   }, [router]);
 
-  useEffect(() => {
-    if (driverInfo?.status !== 'approved') return;
+  const driverDocRef = useMemoFirebase(() => {
+    if (!firestore || !driverId) return null;
+    return doc(firestore, "drivers", driverId);
+  }, [firestore, driverId]);
 
-    const q = query(
-      collection(db, "requests"),
+  const { data: driverInfo, loading: loadingDriver } = useDoc<DriverInfo>(driverDocRef);
+
+  const requestsQuery = useMemoFirebase(() => {
+    if (!firestore || driverInfo?.status !== 'approved') return null;
+    return query(
+      collection(firestore, "requests"),
       where("status", "==", "pending"),
       orderBy("timestamp", "desc")
     );
+  }, [firestore, driverInfo]);
 
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
-      const reqs: GasRequest[] = [];
-      querySnapshot.forEach((doc) => {
-        reqs.push({ id: doc.id, ...doc.data() } as GasRequest);
-      });
-      setRequests(reqs);
-      setLoading(false);
-    });
-
-    return () => unsubscribe();
-  }, [driverInfo]);
+  const { data: requests, loading: loadingRequests } = useCollection<GasRequest>(requestsQuery);
 
   const openInGoogleMaps = (lat: number, lng: number) => {
     window.open(`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`, '_blank');
   };
+
+  if (loadingDriver) return (
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+    </div>
+  );
 
   if (!driverInfo) return null;
 
@@ -123,12 +114,12 @@ export default function DriverDashboard() {
       </header>
 
       <main className="flex-1 p-6 space-y-4">
-        {loading ? (
+        {loadingRequests ? (
           <div className="flex flex-col items-center justify-center py-20 opacity-50">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
             <p className="mt-4 text-sm">جاري تحميل الطلبات...</p>
           </div>
-        ) : requests.length === 0 ? (
+        ) : !requests || requests.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-center space-y-4 opacity-50">
             <Truck className="w-16 h-16 text-muted-foreground" />
             <p className="text-muted-foreground font-medium">لا يوجد طلبات نشطة حالياً</p>
