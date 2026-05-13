@@ -33,6 +33,7 @@ const nextConfig: NextConfig = {
   // Optimizing for mobile web views
   compress: true,
   reactStrictMode: true,
+  poweredByHeader: false,
 };
 
 export default nextConfig;

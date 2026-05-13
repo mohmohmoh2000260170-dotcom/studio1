@@ -12,6 +12,9 @@ export const metadata: Metadata = {
     statusBarStyle: 'default',
     title: 'غاز دليفري',
   },
+  formatDetection: {
+    telephone: true,
+  },
 };
 
 export const viewport: Viewport = {
@@ -33,8 +36,9 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
       </head>
-      <body className="font-body antialiased selection:bg-primary/30">
+      <body className="font-body antialiased selection:bg-primary/30 overscroll-none">
         <FirebaseClientProvider>
           {children}
           <Toaster />
