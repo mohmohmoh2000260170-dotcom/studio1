@@ -91,7 +91,9 @@ export default function AdminDashboard() {
           <h1 className="text-xl font-bold">لوحة تحكم المشرف</h1>
         </div>
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={handleRefresh} className="text-slate-400 hover:text-primary"><RotateCcw className="w-4 h-4" /></Button>
+          <Button variant="ghost" size="icon" onClick={handleRefresh} className="text-slate-400 hover:text-primary">
+            <RotateCcw className="w-5 h-5" />
+          </Button>
           <Button variant="ghost" onClick={() => router.push('/')} className="text-red-500 font-bold"><LogOut className="w-4 h-4 ml-2" /> خروج</Button>
         </div>
       </header>

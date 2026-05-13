@@ -90,6 +90,10 @@ export default function CustomerDashboard() {
     }
   }, []);
 
+  const handleRefresh = () => {
+    window.location.reload();
+  };
+
   const refreshLocation = () => {
     if (typeof window !== 'undefined' && navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
@@ -162,6 +166,7 @@ export default function CustomerDashboard() {
         
         setCustomerId(docSnap.id);
         setStep('discovery');
+        toast({ title: "تم تسجيل الدخول" });
       } else {
         if (!snap.empty) throw new Error("هذا الرقم مسجل مسبقاً، يرجى تسجيل الدخول");
         if (!formData.customerName) throw new Error("يرجى إدخال اسمك.");
@@ -182,6 +187,7 @@ export default function CustomerDashboard() {
         
         setCustomerId(uid);
         setStep('discovery');
+        toast({ title: "تم التسجيل بنجاح" });
       }
     } catch (err: any) {
       setErrorMsg(err.message);
@@ -243,10 +249,6 @@ export default function CustomerDashboard() {
     localStorage.removeItem('sessionId');
     setStep('auth');
     setCustomerId(null);
-  };
-
-  const handleRefresh = () => {
-    window.location.reload();
   };
 
   if (!mounted) return null;
@@ -351,7 +353,7 @@ export default function CustomerDashboard() {
           </h1>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" onClick={handleRefresh} className="text-slate-400 hover:text-primary"><RotateCcw className="w-4 h-4" /></Button>
+          <Button variant="ghost" size="icon" onClick={handleRefresh} className="text-slate-400 hover:text-primary"><RotateCcw className="w-5 h-5" /></Button>
           <Badge variant="outline" className="bg-primary/5 text-primary">{profile?.name || "عميل"}</Badge>
         </div>
       </header>

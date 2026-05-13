@@ -74,7 +74,11 @@ export default function DriverDashboard() {
         } else {
           handleLogout();
         }
-      } catch (e) { console.error(e); } finally { setLoadingInfo(false); }
+      } catch (e) { 
+        console.error(e); 
+      } finally { 
+        setLoadingInfo(false); 
+      }
     };
     fetchDriver();
   }, [firestore, driverId]);
@@ -146,7 +150,16 @@ export default function DriverDashboard() {
     window.location.reload();
   };
 
-  if (loadingInfo) return <div className="min-h-screen flex items-center justify-center bg-[#FBF3EE]"><Loader2 className="animate-spin text-primary" /></div>;
+  if (loadingInfo) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-[#FBF3EE] space-y-4">
+        <Loader2 className="animate-spin text-primary w-10 h-10" />
+        <Button variant="outline" onClick={handleRefresh} className="gap-2">
+          <RotateCcw className="w-4 h-4" /> تحديث الصفحة
+        </Button>
+      </div>
+    );
+  }
 
   if (realTimeDriver?.status === 'pending') {
     return (
@@ -155,7 +168,12 @@ export default function DriverDashboard() {
           <Clock className="w-16 h-16 text-amber-600 mx-auto" />
           <h1 className="text-2xl font-bold text-slate-900">بانتظار موافقة الإدارة</h1>
           <p className="text-muted-foreground">حسابك قيد المراجعة حالياً. سيتم تفعيله من قبل المشرف قريباً.</p>
-          <Button onClick={handleLogout} variant="outline" className="w-full h-12">خروج</Button>
+          <div className="flex flex-col gap-2">
+            <Button onClick={handleRefresh} className="w-full h-12 gap-2">
+              <RotateCcw className="w-4 h-4" /> تحديث الحالة
+            </Button>
+            <Button onClick={handleLogout} variant="outline" className="w-full h-12">خروج</Button>
+          </div>
         </div>
       </div>
     );
@@ -169,7 +187,9 @@ export default function DriverDashboard() {
           <h1 className="text-lg font-bold text-primary">لوحة السائق</h1>
         </div>
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={handleRefresh} className="text-slate-400 hover:text-primary"><RotateCcw className="w-4 h-4" /></Button>
+          <Button variant="ghost" size="icon" onClick={handleRefresh} className="text-slate-400 hover:text-primary">
+            <RotateCcw className="w-5 h-5" />
+          </Button>
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold text-slate-500">{realTimeDriver?.availability === 'available' ? 'متاح' : 'مشغول'}</span>
             <Switch checked={realTimeDriver?.availability === 'available'} onCheckedChange={toggleAvailability} />
