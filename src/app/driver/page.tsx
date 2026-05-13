@@ -1,14 +1,31 @@
+
 "use client";
 
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Flame, MapPin, Clock, ArrowRight, Truck, ShoppingCart, Phone, ExternalLink, ShieldAlert, XCircle, LogOut } from 'lucide-react';
-import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where, orderBy, getDocs } from 'firebase/firestore';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { 
+  Flame, 
+  MapPin, 
+  Clock, 
+  Truck, 
+  ShoppingCart, 
+  Phone, 
+  ExternalLink, 
+  LogOut, 
+  CheckCircle2,
+  XCircle,
+  Activity
+} from 'lucide-react';
+import { useFirestore, useCollection, useMemoFirebase, errorEmitter } from '@/firebase';
+import { collection, query, where, orderBy, getDocs, doc, updateDoc } from 'firebase/firestore';
+import { FirestorePermissionError } from '@/firebase/errors';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useToast } from '@/hooks/use-toast';
 
 interface GasRequest {
   id: string;
@@ -24,13 +41,17 @@ interface GasRequest {
 interface DriverInfo {
   id: string;
   status: 'pending' | 'approved' | 'rejected';
+  availability: 'available' | 'busy';
   name: string;
   phone: string;
+  lat: number;
+  lng: number;
 }
 
 export default function DriverDashboard() {
   const router = useRouter();
   const firestore = useFirestore();
+  const { toast } = useToast();
   const [driverId, setDriverId] = useState<string | null>(null);
   const [driverInfo, setDriverInfo] = useState<DriverInfo | null>(null);
   const [loadingInfo, setLoadingInfo] = useState(true);
@@ -68,8 +89,29 @@ export default function DriverDashboard() {
     fetchDriver();
   }, [firestore, driverId, router]);
 
+  // Update location automatically
+  useEffect(() => {
+    if (!firestore || !driverInfo || driverInfo.status !== 'approved') return;
+
+    const updateLoc = () => {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition((pos) => {
+          const driverRef = doc(firestore, "drivers", driverInfo.id);
+          updateDoc(driverRef, {
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude
+          });
+        });
+      }
+    };
+
+    const interval = setInterval(updateLoc, 60000); // Every minute
+    updateLoc();
+    return () => clearInterval(interval);
+  }, [firestore, driverInfo]);
+
   const requestsQuery = useMemoFirebase(() => {
-    if (!firestore || driverInfo?.status !== 'approved') return null;
+    if (!firestore || driverInfo?.status !== 'approved' || driverInfo?.availability !== 'available') return null;
     return query(
       collection(firestore, "requests"),
       where("status", "==", "pending"),
@@ -79,22 +121,41 @@ export default function DriverDashboard() {
 
   const { data: requests, loading: loadingRequests } = useCollection<GasRequest>(requestsQuery);
 
+  const toggleAvailability = async () => {
+    if (!firestore || !driverInfo) return;
+    
+    const newStatus = driverInfo.availability === 'available' ? 'busy' : 'available';
+    const driverRef = doc(firestore, "drivers", driverInfo.id);
+
+    updateDoc(driverRef, { availability: newStatus })
+      .then(() => {
+        setDriverInfo({ ...driverInfo, availability: newStatus });
+        toast({
+          title: newStatus === 'available' ? "أنت متاح الآن" : "أنت مشغول الآن",
+          description: newStatus === 'available' ? "ستصلك طلبات العملاء القريبة" : "تم إيقاف استقبال الطلبات مؤقتاً",
+        });
+      })
+      .catch(async (err) => {
+        const permissionError = new FirestorePermissionError({
+          path: driverRef.path,
+          operation: 'update',
+          requestResourceData: { availability: newStatus },
+        });
+        errorEmitter.emit('permission-error', permissionError);
+      });
+  };
+
   const handleLogout = () => {
     localStorage.removeItem('driverId');
     router.push('/driver/login');
   };
 
-  const openInGoogleMaps = (lat: number, lng: number) => {
-    window.open(`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`, '_blank');
-  };
-
   if (loadingInfo) return (
-    <div className="min-h-screen flex items-center justify-center">
-      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+    <div className="min-h-screen flex items-center justify-center bg-[#FBF3EE]">
+      <Loader2 className="w-8 h-8 animate-spin text-primary" />
     </div>
   );
 
-  // Status: Pending
   if (driverInfo?.status === 'pending') {
     return (
       <div className="min-h-screen bg-[#FBF3EE] flex flex-col items-center justify-center p-6 text-center" dir="rtl">
@@ -102,36 +163,14 @@ export default function DriverDashboard() {
           <div className="mx-auto bg-amber-100 p-6 rounded-full w-fit animate-pulse">
             <Clock className="w-16 h-16 text-amber-600" />
           </div>
-          <h1 className="text-2xl font-bold text-foreground">بانتظار موافقة الإدارة</h1>
-          <p className="text-muted-foreground leading-relaxed">
-            أهلاً يا {driverInfo.name}. حسابك حالياً قيد المراجعة. 
-            سيتم تفعيل حسابك لتبدأ باستقبال الطلبات فور التأكد من بياناتك من قبل المشرف.
-          </p>
+          <h1 className="text-2xl font-bold">بانتظار موافقة الإدارة</h1>
+          <p className="text-muted-foreground">أهلاً يا {driverInfo.name}. حسابك قيد المراجعة حالياً. سيتم تفعيله قريباً لتبدأ باستقبال الطلبات.</p>
           <Button onClick={handleLogout} variant="outline" className="w-full">خروج</Button>
         </div>
       </div>
     );
   }
 
-  // Status: Rejected
-  if (driverInfo?.status === 'rejected') {
-    return (
-      <div className="min-h-screen bg-[#FBF3EE] flex flex-col items-center justify-center p-6 text-center" dir="rtl">
-        <div className="bg-white p-8 rounded-3xl shadow-xl border-2 border-red-100 max-w-md space-y-6">
-          <div className="mx-auto bg-red-100 p-6 rounded-full w-fit">
-            <XCircle className="w-16 h-16 text-red-600" />
-          </div>
-          <h1 className="text-2xl font-bold text-foreground">تم رفض الطلب</h1>
-          <p className="text-muted-foreground leading-relaxed">
-            نعتذر منك يا {driverInfo.name}. لم تتم الموافقة على طلب انضمامك حالياً.
-          </p>
-          <Button onClick={handleLogout} variant="outline" className="w-full">خروج</Button>
-        </div>
-      </div>
-    );
-  }
-
-  // Status: Approved
   return (
     <div className="min-h-screen bg-[#FBF3EE] flex flex-col" dir="rtl">
       <header className="bg-white border-b px-6 py-4 flex items-center justify-between shadow-sm sticky top-0 z-10">
@@ -143,81 +182,110 @@ export default function DriverDashboard() {
             <div className="bg-primary p-2 rounded-lg">
               <Flame className="w-5 h-5 text-white" />
             </div>
-            <h1 className="text-lg font-bold text-primary">طلبات التوصيل</h1>
+            <h1 className="text-lg font-bold text-primary">لوحة السائق</h1>
           </div>
         </div>
-        <Badge variant="secondary" className="bg-green-100 text-green-700 hover:bg-green-100 px-3 py-1">
-          <span className="w-2 h-2 bg-green-500 rounded-full ml-2 animate-pulse"></span>
-          متصل
-        </Badge>
+        
+        <div className="flex items-center gap-4">
+          <div className="hidden md:flex flex-col items-end gap-0.5">
+             <span className="text-[10px] text-muted-foreground">الحالة الحالية</span>
+             <span className={`text-xs font-bold ${driverInfo?.availability === 'available' ? 'text-green-600' : 'text-slate-500'}`}>
+               {driverInfo?.availability === 'available' ? 'متاح للطلب' : 'غير متاح'}
+             </span>
+          </div>
+          <Switch 
+            checked={driverInfo?.availability === 'available'} 
+            onCheckedChange={toggleAvailability}
+          />
+        </div>
       </header>
 
-      <main className="flex-1 p-6 space-y-4">
-        {loadingRequests ? (
-          <div className="flex flex-col items-center justify-center py-20 opacity-50">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-            <p className="mt-4 text-sm">جاري تحميل الطلبات...</p>
-          </div>
-        ) : !requests || requests.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-center space-y-4 opacity-50">
-            <Truck className="w-16 h-16 text-muted-foreground" />
-            <p className="text-muted-foreground font-medium">لا يوجد طلبات نشطة حالياً</p>
-          </div>
-        ) : (
-          requests.map((req) => (
-            <Card key={req.id} className="border-2 border-primary/10 shadow-md bg-white hover:border-primary/30 transition-all overflow-hidden">
-              <CardHeader className="pb-2 bg-slate-50 flex flex-row items-center justify-between border-b">
-                <div>
-                  <CardTitle className="text-lg font-bold">{req.customerName}</CardTitle>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
-                    <Clock className="w-3 h-3" />
-                    {req.timestamp?.toDate()?.toLocaleTimeString('ar-JO', { hour: '2-digit', minute: '2-digit' })}
-                  </div>
-                </div>
-                <Badge className="bg-primary">جديد</Badge>
-              </CardHeader>
-              <CardContent className="p-5 space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="flex items-center gap-3 bg-slate-50 p-3 rounded-xl border">
-                    <ShoppingCart className="w-5 h-5 text-primary" />
-                    <div>
-                      <p className="text-[10px] text-muted-foreground">عدد الأسطوانات</p>
-                      <p className="font-bold">{req.cylinders}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 bg-slate-50 p-3 rounded-xl border">
-                    <Phone className="w-5 h-5 text-primary" />
-                    <div>
-                      <p className="text-[10px] text-muted-foreground">رقم الهاتف</p>
-                      <p className="font-bold">{req.phoneNumber}</p>
-                    </div>
-                  </div>
-                </div>
+      <main className="flex-1 p-6 space-y-4 max-w-3xl mx-auto w-full">
+        {driverInfo?.availability === 'busy' && (
+          <Card className="bg-slate-50 border-slate-200">
+            <CardContent className="p-10 text-center space-y-4">
+              <Activity className="w-12 h-12 text-slate-400 mx-auto" />
+              <h2 className="text-xl font-bold">أنت حالياً في وضع "مشغول"</h2>
+              <p className="text-muted-foreground">قم بتفعيل الحالة من الأعلى لتبدأ باستقبال طلبات العملاء القريبة منك.</p>
+            </CardContent>
+          </Card>
+        )}
 
-                <div className="flex items-start gap-3 text-sm px-1">
-                  <MapPin className="w-4 h-4 text-primary mt-0.5" />
-                  <p className="text-muted-foreground">الموقع: {req.lat.toFixed(6)}, {req.lng.toFixed(6)}</p>
-                </div>
+        {driverInfo?.availability === 'available' && (
+          <>
+            <div className="flex items-center justify-between px-2 mb-2">
+              <h2 className="font-bold flex items-center gap-2">
+                <ShoppingCart className="w-4 h-4 text-primary" />
+                الطلبات القريبة ({requests?.length || 0})
+              </h2>
+              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">جاري البحث...</Badge>
+            </div>
 
-                <div className="flex gap-2">
-                  <Button 
-                    onClick={() => openInGoogleMaps(req.lat, req.lng)}
-                    variant="outline"
-                    className="flex-1 h-12 gap-2 border-primary text-primary hover:bg-primary/5"
-                  >
-                    <ExternalLink className="w-4 h-4" />
-                    موقع الخريطة
-                  </Button>
-                  <Link href={`tel:${req.phoneNumber}`} className="flex-1">
-                    <Button className="w-full h-12 gap-2 font-bold bg-primary hover:bg-primary/90">
-                      <Phone className="w-4 h-4" />
-                      اتصال بالعميل
-                    </Button>
-                  </Link>
+            {loadingRequests ? (
+              <div className="flex justify-center py-20">
+                <Loader2 className="w-8 h-8 animate-spin text-primary" />
+              </div>
+            ) : !requests || requests.length === 0 ? (
+              <div className="text-center py-20 bg-white rounded-3xl border-2 border-dashed space-y-4">
+                <div className="bg-slate-50 p-6 rounded-full w-fit mx-auto">
+                   <Truck className="w-12 h-12 text-slate-300" />
                 </div>
-              </CardContent>
-            </Card>
-          ))
+                <p className="text-muted-foreground">لا توجد طلبات نشطة حالياً في منطقتك</p>
+              </div>
+            ) : (
+              <div className="grid gap-4">
+                {requests.map((req) => (
+                  <Card key={req.id} className="border-2 hover:border-primary/30 transition-all shadow-md overflow-hidden bg-white">
+                    <div className="bg-primary/5 p-4 flex justify-between items-center border-b">
+                      <div className="flex items-center gap-2">
+                        <Badge className="bg-primary">طلب جديد</Badge>
+                        <span className="text-xs text-muted-foreground flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          {req.timestamp?.toDate()?.toLocaleTimeString('ar-JO', { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                      <h3 className="font-bold">{req.customerName}</h3>
+                    </div>
+                    <CardContent className="p-5 space-y-5">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="bg-slate-50 p-3 rounded-xl border flex items-center gap-3">
+                          <ShoppingCart className="w-5 h-5 text-primary" />
+                          <div className="text-right">
+                            <p className="text-[10px] text-muted-foreground">الكمية</p>
+                            <p className="font-bold">{req.cylinders} اسطوانات</p>
+                          </div>
+                        </div>
+                        <div className="bg-slate-50 p-3 rounded-xl border flex items-center gap-3">
+                          <Phone className="w-5 h-5 text-primary" />
+                          <div className="text-right">
+                            <p className="text-[10px] text-muted-foreground">الهاتف</p>
+                            <p className="font-bold">{req.phoneNumber}</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex gap-2">
+                        <Button 
+                          variant="outline" 
+                          className="flex-1 h-12 border-primary text-primary hover:bg-primary/5 gap-2"
+                          onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${req.lat},${req.lng}`, '_blank')}
+                        >
+                          <MapPin className="w-4 h-4" />
+                          فتح الخريطة
+                        </Button>
+                        <Link href={`tel:${req.phoneNumber}`} className="flex-1">
+                          <Button className="w-full h-12 gap-2 font-bold bg-primary">
+                            <Phone className="w-4 h-4" />
+                            اتصال سريع
+                          </Button>
+                        </Link>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </>
         )}
       </main>
     </div>

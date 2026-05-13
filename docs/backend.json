@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "Driver": {
@@ -9,10 +10,13 @@
         "phone": { "type": "string", "description": "Contact phone number." },
         "companyLicense": { "type": "string", "description": "The official business license number." },
         "status": { "type": "string", "enum": ["pending", "approved", "rejected"], "description": "Current registration status." },
+        "availability": { "type": "string", "enum": ["available", "busy"], "description": "Whether the driver is ready to take orders." },
+        "lat": { "type": "number", "description": "Current latitude of the driver." },
+        "lng": { "type": "number", "description": "Current longitude of the driver." },
         "timestamp": { "type": "string", "format": "date-time", "description": "When the registration was created." },
         "uid": { "type": "string", "description": "The verified Firebase Auth UID." }
       },
-      "required": ["name", "phone", "companyLicense", "status", "uid"]
+      "required": ["name", "phone", "companyLicense", "status", "availability", "lat", "lng", "uid"]
     },
     "Request": {
       "title": "Delivery Request",
