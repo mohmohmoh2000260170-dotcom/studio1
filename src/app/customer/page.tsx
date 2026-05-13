@@ -43,6 +43,7 @@ interface CustomerProfile {
   sessionId: string;
   deviceId: string;
   pin: string;
+  name: string;
 }
 
 const PRICE_PER_CYLINDER = 7;
@@ -78,14 +79,14 @@ export default function CustomerDashboard() {
     cylinders: 1,
   });
 
-  // Force clear stuck states on initial mount
+  // Auto-Login check
   useEffect(() => {
     const savedId = localStorage.getItem('customerId');
     const savedName = localStorage.getItem('customerName');
     const savedPhone = localStorage.getItem('customerPhone');
     
-    if (savedId && savedName && savedPhone) {
-      setFormData(prev => ({ ...prev, customerName: savedName, phoneNumber: savedPhone }));
+    if (savedId && savedPhone) {
+      setFormData(prev => ({ ...prev, customerName: savedName || '', phoneNumber: savedPhone }));
       setCustomerId(savedId);
       setStep('discovery');
     }
@@ -102,7 +103,7 @@ export default function CustomerDashboard() {
         { enableHighAccuracy: true }
       );
     }
-  }, []);
+  }, [step]);
 
   // Session Management
   const customerDocRef = useMemo(() => {
@@ -147,63 +148,62 @@ export default function CustomerDashboard() {
   const handleDetailsSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (loadingRegistration) return;
+
     if (!formData.phoneNumber || formData.pin.length !== 4) {
-      toast({ variant: "destructive", title: "خطأ", description: "يرجى إدخال الهاتف ورمز PIN المكون من 4 أرقام" });
+      toast({ 
+        variant: "destructive", 
+        title: "بيانات ناقصة", 
+        description: "يرجى إدخال الهاتف ورمز PIN المكون من 4 أرقام" 
+      });
       return;
     }
     
     setLoadingRegistration(true);
     setSecurityAlert(null);
 
+    // Failsafe timeout to prevent infinite loading
+    const timeoutId = setTimeout(() => {
+      setLoadingRegistration(false);
+    }, 5000);
+
     try {
       const currentDeviceId = getDeviceId();
-      
-      // Check if user already exists
       const q = query(collection(firestore, "customers"), where("phone", "==", formData.phoneNumber));
       const snap = await getDocs(q);
 
+      let targetId = '';
+      let targetName = formData.customerName;
+
       if (!snap.empty) {
-        // LOGIN FLOW
-        const customerDoc = snap.docs[0];
-        const data = customerDoc.data();
+        // LOGIN logic
+        const docSnap = snap.docs[0];
+        const data = docSnap.data();
 
-        // Check PIN
         if (data.pin !== formData.pin) {
-          toast({ variant: "destructive", title: "خطأ", description: "رمز PIN غير صحيح" });
-          setLoadingRegistration(false);
-          return;
+          throw new Error("رمز PIN غير صحيح");
         }
 
-        // Check Device Binding
         if (data.deviceId && data.deviceId !== currentDeviceId) {
-          setSecurityAlert('تنبيه أمني: هذا الحساب مرتبط بجهاز آخر. لا يمكن الدخول من هذا الجهاز.');
-          setLoadingRegistration(false);
-          return;
+          throw new Error("تنبيه أمني: هذا الحساب مرتبط بجهاز آخر.");
         }
 
-        const newSessionId = Math.random().toString(36).substring(2, 15);
-        await updateDoc(doc(firestore, "customers", customerDoc.id), { sessionId: newSessionId });
+        targetId = docSnap.id;
+        targetName = data.name;
 
-        localStorage.setItem('customerId', customerDoc.id);
-        localStorage.setItem('customerName', data.name);
-        localStorage.setItem('customerPhone', data.phone);
+        // Update session
+        const newSessionId = Math.random().toString(36).substring(2, 15);
+        updateDoc(doc(firestore, "customers", targetId), { sessionId: newSessionId });
         localStorage.setItem('sessionId', newSessionId);
-        
-        setCustomerId(customerDoc.id);
-        setStep('discovery');
-        toast({ title: "مرحباً بعودتك", description: `أهلاً بك، ${data.name}` });
+
       } else {
-        // SIGNUP FLOW
+        // SIGNUP logic
         if (!formData.customerName) {
-          toast({ variant: "destructive", title: "خطأ", description: "يرجى إدخال اسمك للتسجيل لأول مرة" });
-          setLoadingRegistration(false);
-          return;
+          throw new Error("يرجى إدخال اسمك للتسجيل لأول مرة");
         }
 
         const uid = 'cust_' + Math.random().toString(36).substring(2, 11);
         const newSessionId = Math.random().toString(36).substring(2, 15);
         
-        const customerRef = doc(firestore, "customers", uid);
         const customerData = {
           name: formData.customerName,
           phone: formData.phoneNumber,
@@ -214,22 +214,30 @@ export default function CustomerDashboard() {
           timestamp: serverTimestamp(),
         };
 
-        await setDoc(customerRef, customerData);
-
-        localStorage.setItem('customerId', uid);
-        localStorage.setItem('customerName', formData.customerName);
-        localStorage.setItem('customerPhone', formData.phoneNumber);
+        await setDoc(doc(firestore, "customers", uid), customerData);
+        targetId = uid;
         localStorage.setItem('sessionId', newSessionId);
-
-        setCustomerId(uid);
-        setStep('discovery');
-        toast({ title: "تم التسجيل", description: "أهلاً بك في غاز دليفري" });
       }
+
+      // Finalize session
+      localStorage.setItem('customerId', targetId);
+      localStorage.setItem('customerName', targetName);
+      localStorage.setItem('customerPhone', formData.phoneNumber);
+      
+      setCustomerId(targetId);
+      setStep('discovery');
+      toast({ title: "مرحباً بك", description: `تم تسجيل الدخول باسم ${targetName}` });
+
+    } catch (err: any) {
+      console.error("Auth error:", err);
+      if (err.message.includes("تنبيه أمني")) {
+        setSecurityAlert(err.message);
+      } else {
+        toast({ variant: "destructive", title: "فشل الدخول", description: err.message || "حدث خطأ غير متوقع" });
+      }
+    } finally {
+      clearTimeout(timeoutId);
       setLoadingRegistration(false);
-    } catch (err) {
-      setLoadingRegistration(false);
-      console.error("Submit Error:", err);
-      toast({ variant: "destructive", title: "خطأ", description: "حدث خطأ غير متوقع." });
     }
   };
 
@@ -239,7 +247,7 @@ export default function CustomerDashboard() {
     
     const requestsRef = collection(firestore, "requests");
     const requestData = {
-      customerName: formData.customerName,
+      customerName: formData.customerName || "عميل",
       phoneNumber: formData.phoneNumber,
       cylinders: formData.cylinders.toString(),
       uid: customerId,
@@ -272,13 +280,13 @@ export default function CustomerDashboard() {
   if (step === 'details') {
     return (
       <div className="min-h-screen bg-[#FBF3EE] flex flex-col items-center justify-center p-6 text-right" dir="rtl">
-        <Card className="w-full max-w-md shadow-2xl border-primary/20 bg-white">
-          <CardHeader className="text-center">
+        <Card className="w-full max-w-md shadow-2xl border-primary/20 bg-white overflow-hidden">
+          <CardHeader className="text-center pb-2">
             <div className="mx-auto bg-primary/10 p-4 rounded-2xl w-fit mb-2"><User className="w-10 h-10 text-primary" /></div>
             <CardTitle className="text-2xl font-bold">دخول العملاء</CardTitle>
-            <CardDescription>أدخل رقم هاتفك ورمز PIN للمتابعة</CardDescription>
+            <CardDescription>أدخل رقم هاتفك ورمز PIN</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-4">
             <form onSubmit={handleDetailsSubmit} className="space-y-4">
               <div className="space-y-2">
                 <Label className="block text-right">رقم الهاتف</Label>
@@ -290,7 +298,7 @@ export default function CustomerDashboard() {
                     value={formData.phoneNumber} 
                     onChange={(e) => setFormData({...formData, phoneNumber: e.target.value})} 
                     required 
-                    className="pr-10 text-right"
+                    className="pr-10 text-right h-12"
                   />
                 </div>
               </div>
@@ -306,19 +314,19 @@ export default function CustomerDashboard() {
                     value={formData.pin} 
                     onChange={(e) => setFormData({...formData, pin: e.target.value.replace(/\D/g, '')})} 
                     required 
-                    className="pr-10 text-right"
+                    className="pr-10 text-right h-12"
                   />
                 </div>
               </div>
 
               <div className="space-y-2 border-t pt-4 mt-4">
-                <p className="text-[10px] text-muted-foreground mb-2">للتسجيل لأول مرة، يرجى كتابة الاسم:</p>
-                <Label className="block text-right">الاسم بالكامل</Label>
+                <p className="text-[10px] text-muted-foreground mb-2">للتسجيل لأول مرة فقط، يرجى كتابة الاسم:</p>
+                <Label className="block text-right">الاسم الكامل (للمشتركين الجدد)</Label>
                 <Input 
                   placeholder="مثال: خالد أحمد" 
                   value={formData.customerName} 
                   onChange={(e) => setFormData({...formData, customerName: e.target.value})} 
-                  className="text-right"
+                  className="text-right h-12"
                 />
               </div>
 
@@ -329,7 +337,7 @@ export default function CustomerDashboard() {
                 </div>
               )}
 
-              <Button type="submit" disabled={loadingRegistration} className="w-full h-12 text-lg font-bold mt-4">
+              <Button type="submit" disabled={loadingRegistration} className="w-full h-14 text-lg font-bold mt-4 shadow-lg active:scale-95 transition-all">
                 {loadingRegistration ? <Loader2 className="animate-spin" /> : "دخول مباشر"}
               </Button>
               <Link href="/" className="block">
@@ -353,12 +361,12 @@ export default function CustomerDashboard() {
           </h1>
         </div>
         <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20">
-          أهلاً، {formData.customerName}
+          أهلاً، {formData.customerName || "عميل"}
         </Badge>
       </header>
 
       <div className="flex-1 flex flex-col md:flex-row overflow-hidden relative">
-        <div className="w-full md:w-96 bg-white border-l overflow-y-auto p-4 space-y-4 shadow-xl z-10">
+        <div className="w-full md:w-96 bg-white border-l overflow-y-auto p-4 space-y-4 shadow-xl z-10 hidden md:block">
           <div className="p-2">
             <h2 className="text-sm font-bold text-muted-foreground mb-4">
               {loadingDrivers ? "جاري البحث..." : `تم العثور على ${nearestAgencies.length} موزع`}
@@ -383,7 +391,7 @@ export default function CustomerDashboard() {
                         </p>
                       </div>
                     </div>
-                    <Badge className="bg-green-100 text-green-700">متاح</Badge>
+                    <Badge className="bg-green-100 text-green-700 text-[10px]">متاح</Badge>
                   </CardContent>
                 </Card>
               ))}
