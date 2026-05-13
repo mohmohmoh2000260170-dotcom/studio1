@@ -3,9 +3,12 @@
 
 import React, { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { Truck, MapPin, Navigation } from 'lucide-react';
+import { Navigation } from 'lucide-react';
 
-// Dynamic import for Leaflet because it requires 'window'
+/**
+ * Dynamic import for Leaflet components to prevent server-side rendering issues.
+ * Leaflet requires 'window' to be defined.
+ */
 const MapContainer = dynamic(() => import('react-leaflet').then((mod) => mod.MapContainer), { ssr: false });
 const TileLayer = dynamic(() => import('react-leaflet').then((mod) => mod.TileLayer), { ssr: false });
 const Marker = dynamic(() => import('react-leaflet').then((mod) => mod.Marker), { ssr: false });
@@ -20,31 +23,42 @@ interface MarkerProps {
   isOnline?: boolean;
 }
 
+/**
+ * GoogleMapsView component using OpenStreetMap and Leaflet (Free stack).
+ * Displays customer location and nearby gas delivery agencies.
+ */
 export function GoogleMapsView({ markers }: { markers: MarkerProps[] }) {
   const [L, setL] = useState<any>(null);
   const [mounted, setMounted] = useState(false);
   
-  // Try to center on the customer ('me') or the first marker, else default to Amman
+  // Center on current user location or default to Amman
   const centerMarker = markers.find(m => m.id === 'me') || markers[0];
   const centerPosition: [number, number] = centerMarker ? [centerMarker.lat, centerMarker.lng] : [31.9454, 35.9284];
 
   useEffect(() => {
     setMounted(true);
+    // Asynchronously import Leaflet on the client
     import('leaflet').then((leaflet) => {
       setL(leaflet);
     });
   }, []);
 
-  if (!mounted || !L) return <div className="w-full h-full bg-slate-100 animate-pulse flex items-center justify-center">جاري تحميل الخريطة...</div>;
+  if (!mounted || !L) return (
+    <div className="w-full h-full bg-slate-100 animate-pulse flex items-center justify-center">
+      جاري تحميل الخريطة...
+    </div>
+  );
 
-  // Custom Icon Function - Use a simple HTML string to avoid react-dom/server in client bundle
+  /**
+   * Creates a custom div icon for markers.
+   * This uses raw HTML strings to avoid hydration mismatches with dynamic React elements.
+   */
   const createIcon = (type: 'driver' | 'customer', isOnline?: boolean) => {
-    const colorClass = type === 'driver' ? 'bg-primary' : 'bg-accent';
+    const colorClass = type === 'driver' ? 'bg-[#FA6619]' : 'bg-[#B31E1E]';
     const animationClass = isOnline ? 'animate-pulse' : '';
     
-    // Simple inline HTML string for the icon to avoid hydration complexity
     const iconHtml = `
-      <div class="p-2 rounded-full shadow-lg border-2 flex items-center justify-center ${colorClass} border-white ${animationClass}">
+      <div style="padding: 8px; border-radius: 9999px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); border: 2px solid white; display: flex; align-items: center; justify-content: center; width: 32px; height: 32px;" class="${colorClass} ${animationClass}">
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           ${type === 'driver' 
             ? '<path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/><path d="M15 18H9"/><path d="M19 18h2a1 1 0 0 0 1-1v-3.28a1 1 0 0 0-.684-.948l-4.893-1.631A2 2 0 0 1 15 9.186V18"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/>'
@@ -91,7 +105,7 @@ export function GoogleMapsView({ markers }: { markers: MarkerProps[] }) {
         ))}
       </MapContainer>
 
-      {/* Controls Overlay */}
+      {/* Recenter/Refresh Button */}
       <div className="absolute bottom-6 left-6 z-[1000] flex flex-col gap-3">
         <button 
           className="bg-white p-3 rounded-full shadow-xl border hover:bg-slate-50 transition-colors active:scale-90"
@@ -103,7 +117,7 @@ export function GoogleMapsView({ markers }: { markers: MarkerProps[] }) {
 
       <div className="absolute top-6 right-6 z-[1000] bg-white/95 backdrop-blur px-4 py-1.5 rounded-full text-xs font-bold border shadow-xl flex items-center gap-2">
         <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-        مباشر: عمان، الأردن
+        مباشر: الأردن
       </div>
     </div>
   );

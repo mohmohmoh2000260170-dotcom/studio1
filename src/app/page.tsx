@@ -1,3 +1,4 @@
+
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -5,12 +6,16 @@ import { User, Truck, Flame, ShieldCheck } from 'lucide-react';
 import Image from 'next/image';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 
+/**
+ * Main application landing page.
+ * Serves as the primary entry point for both customers and drivers.
+ */
 export default function Home() {
   const heroImage = PlaceHolderImages.find(img => img.id === 'landing-hero');
 
   return (
     <main className="min-h-screen flex flex-col items-center justify-center p-6 bg-background relative overflow-hidden">
-      {/* Admin Button - Floating Top Right */}
+      {/* Admin Dashboard Entry */}
       <div className="absolute top-6 left-6 z-20">
         <Link href="/admin">
           <Button variant="outline" className="gap-2 bg-white/50 backdrop-blur hover:bg-white border-primary/20 shadow-sm">
@@ -20,7 +25,6 @@ export default function Home() {
         </Link>
       </div>
 
-      {/* Background Decorative Elements */}
       <div className="absolute top-0 left-0 w-full h-1/2 bg-gradient-to-b from-primary/10 to-transparent z-0" />
       
       <div className="z-10 w-full max-w-4xl text-center space-y-8">
@@ -33,6 +37,7 @@ export default function Home() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-12">
+          {/* Customer Portal Option */}
           <Link href="/customer" className="group">
             <Card className="h-full border-2 border-transparent hover:border-primary transition-all duration-300 shadow-lg hover:shadow-primary/10 bg-white/80 backdrop-blur">
               <CardHeader className="text-center">
@@ -48,6 +53,7 @@ export default function Home() {
             </Card>
           </Link>
 
+          {/* Agency/Driver Portal Option */}
           <Link href="/driver/login" className="group">
             <Card className="h-full border-2 border-transparent hover:border-primary transition-all duration-300 shadow-lg hover:shadow-primary/10 bg-white/80 backdrop-blur">
               <CardHeader className="text-center">
