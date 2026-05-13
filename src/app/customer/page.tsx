@@ -20,7 +20,8 @@ import {
   Plus,
   Minus,
   Lock,
-  ShieldAlert
+  ShieldAlert,
+  CheckCircle2
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore, useCollection, useMemoFirebase, errorEmitter, useDoc } from '@/firebase';
@@ -68,6 +69,7 @@ export default function CustomerDashboard() {
   const router = useRouter();
   
   const [step, setStep] = useState<'details' | 'discovery'>('details');
+  const [isRegistered, setIsRegistered] = useState(false);
   const [isRinging, setIsRinging] = useState(false);
   const [loadingRegistration, setLoadingRegistration] = useState(false);
   const [location, setLocation] = useState({ lat: 31.9454, lng: 35.9284 });
@@ -81,12 +83,15 @@ export default function CustomerDashboard() {
     cylinders: 1,
   });
 
-  // Auto-Login check
+  // Smart Login: Auto-Login & Registration Recognition
   useEffect(() => {
     const savedId = localStorage.getItem('customerId');
     const savedName = localStorage.getItem('customerName');
     const savedPhone = localStorage.getItem('customerPhone');
+    const registered = localStorage.getItem('isRegistered') === 'true';
     
+    setIsRegistered(registered);
+
     if (savedId && savedPhone) {
       setFormData(prev => ({ ...prev, customerName: savedName || '', phoneNumber: savedPhone }));
       setCustomerId(savedId);
@@ -115,26 +120,19 @@ export default function CustomerDashboard() {
 
   const { data: profile, loading: loadingProfile } = useDoc<CustomerProfile>(customerDocRef);
 
-  // CRITICAL: Real-time deletion handling
+  // Sync session and handle deletion
   useEffect(() => {
-    // If we have a local customer ID but the profile document is missing from Firestore, force logout
-    if (customerId && !loadingProfile && !profile) {
+    if (customerId && !loadingProfile && !profile && step === 'discovery') {
       handleLogout();
     }
-
-    // Single Device Policy
     if (profile && profile.sessionId && customerId) {
       const localSessionId = localStorage.getItem('sessionId');
       if (localSessionId && profile.sessionId !== localSessionId) {
-        toast({
-          variant: "destructive",
-          title: "تنبيه الجلسة",
-          description: "تم تسجيل الدخول من جهاز آخر.",
-        });
+        toast({ variant: "destructive", title: "تنبيه الجلسة", description: "تم تسجيل الدخول من جهاز آخر." });
         handleLogout();
       }
     }
-  }, [profile, customerId, loadingProfile]);
+  }, [profile, customerId, loadingProfile, step]);
 
   const approvedDriversQuery = useMemoFirebase(() => {
     if (!firestore) return null;
@@ -159,21 +157,21 @@ export default function CustomerDashboard() {
     if (loadingRegistration) return;
 
     if (!formData.phoneNumber || formData.pin.length !== 4) {
-      toast({ 
-        variant: "destructive", 
-        title: "بيانات ناقصة", 
-        description: "يرجى إدخال الهاتف ورمز PIN المكون من 4 أرقام" 
-      });
+      toast({ variant: "destructive", title: "بيانات ناقصة", description: "يرجى إدخال الهاتف ورمز PIN المكون من 4 أرقام" });
       return;
     }
     
     setLoadingRegistration(true);
     setSecurityAlert(null);
 
-    // Failsafe timeout to prevent infinite loading
-    const timeoutId = setTimeout(() => {
-      setLoadingRegistration(false);
-    }, 5000);
+    // FIX: 3-Second Force Redirection Timeout
+    const forceTimeout = setTimeout(() => {
+      if (loadingRegistration) {
+        console.warn("Failsafe: Forcing navigation due to slow response.");
+        setStep('discovery');
+        setLoadingRegistration(false);
+      }
+    }, 3000);
 
     try {
       const currentDeviceId = getDeviceId();
@@ -191,7 +189,6 @@ export default function CustomerDashboard() {
         if (data.pin !== formData.pin) {
           throw new Error("رمز PIN غير صحيح");
         }
-
         if (data.deviceId && data.deviceId !== currentDeviceId) {
           throw new Error("تنبيه أمني: هذا الحساب مرتبط بجهاز آخر.");
         }
@@ -199,11 +196,9 @@ export default function CustomerDashboard() {
         targetId = docSnap.id;
         targetName = data.name;
 
-        // Update session
         const newSessionId = Math.random().toString(36).substring(2, 15);
-        await updateDoc(doc(firestore, "customers", targetId), { sessionId: newSessionId });
+        updateDoc(doc(firestore, "customers", targetId), { sessionId: newSessionId, lastSeen: serverTimestamp() });
         localStorage.setItem('sessionId', newSessionId);
-
       } else {
         // SIGNUP logic
         if (!formData.customerName) {
@@ -228,14 +223,16 @@ export default function CustomerDashboard() {
         localStorage.setItem('sessionId', newSessionId);
       }
 
-      // Finalize session
+      // Smart Login: Save persistently
+      localStorage.setItem('isRegistered', 'true');
       localStorage.setItem('customerId', targetId);
       localStorage.setItem('customerName', targetName);
       localStorage.setItem('customerPhone', formData.phoneNumber);
       
       setCustomerId(targetId);
+      setIsRegistered(true);
       setStep('discovery');
-      toast({ title: "مرحباً بك", description: `تم تسجيل الدخول باسم ${targetName}` });
+      toast({ title: "مرحباً بك", description: `تم تسجيل دخولك بنجاح` });
 
     } catch (err: any) {
       console.error("Auth error:", err);
@@ -245,7 +242,7 @@ export default function CustomerDashboard() {
         toast({ variant: "destructive", title: "فشل الدخول", description: err.message || "حدث خطأ غير متوقع" });
       }
     } finally {
-      clearTimeout(timeoutId);
+      clearTimeout(forceTimeout);
       setLoadingRegistration(false);
     }
   };
@@ -256,7 +253,7 @@ export default function CustomerDashboard() {
     
     const requestsRef = collection(firestore, "requests");
     const requestData = {
-      customerName: formData.customerName || "عميل",
+      customerName: formData.customerName || localStorage.getItem('customerName') || "عميل",
       phoneNumber: formData.phoneNumber,
       cylinders: formData.cylinders.toString(),
       uid: customerId,
@@ -281,20 +278,23 @@ export default function CustomerDashboard() {
   };
 
   const handleLogout = () => {
-    localStorage.clear();
+    localStorage.removeItem('customerId');
+    localStorage.removeItem('sessionId');
     setStep('details');
     setCustomerId(null);
-    router.push('/');
   };
 
   if (step === 'details') {
     return (
       <div className="min-h-screen bg-[#FBF3EE] flex flex-col items-center justify-center p-6 text-right" dir="rtl">
-        <Card className="w-full max-w-md shadow-2xl border-primary/20 bg-white overflow-hidden">
+        <Card className="w-full max-w-md shadow-2xl border-primary/20 bg-white overflow-hidden relative">
+          <div className="absolute top-0 right-0 p-4">
+            {isRegistered && <Badge variant="secondary" className="bg-green-100 text-green-700 gap-1"><CheckCircle2 className="w-3 h-3" /> مشترك مسجل</Badge>}
+          </div>
           <CardHeader className="text-center pb-2">
             <div className="mx-auto bg-primary/10 p-4 rounded-2xl w-fit mb-2"><User className="w-10 h-10 text-primary" /></div>
             <CardTitle className="text-2xl font-bold">دخول العملاء</CardTitle>
-            <CardDescription>أدخل رقم هاتفك ورمز PIN</CardDescription>
+            <CardDescription>{isRegistered ? "مرحباً بك مجدداً، أدخل رقمك والرمز" : "سجل الآن لطلب اسطوانة الغاز"}</CardDescription>
           </CardHeader>
           <CardContent className="pt-4">
             <form onSubmit={handleDetailsSubmit} className="space-y-4">
@@ -329,16 +329,17 @@ export default function CustomerDashboard() {
                 </div>
               </div>
 
-              <div className="space-y-2 border-t pt-4 mt-4">
-                <p className="text-[10px] text-muted-foreground mb-2">للتسجيل لأول مرة فقط، يرجى كتابة الاسم:</p>
-                <Label className="block text-right">الاسم الكامل (للمشتركين الجدد)</Label>
-                <Input 
-                  placeholder="مثال: خالد أحمد" 
-                  value={formData.customerName} 
-                  onChange={(e) => setFormData({...formData, customerName: e.target.value})} 
-                  className="text-right h-12"
-                />
-              </div>
+              {!isRegistered && (
+                <div className="space-y-2 border-t pt-4 mt-4 animate-in fade-in slide-in-from-top-2">
+                  <Label className="block text-right">الاسم الكامل</Label>
+                  <Input 
+                    placeholder="مثال: خالد أحمد" 
+                    value={formData.customerName} 
+                    onChange={(e) => setFormData({...formData, customerName: e.target.value})} 
+                    className="text-right h-12"
+                  />
+                </div>
+              )}
 
               {securityAlert && (
                 <div className="bg-red-50 border border-red-200 p-3 rounded-xl flex items-center gap-3 text-red-700 text-xs font-bold mt-2">
@@ -348,7 +349,7 @@ export default function CustomerDashboard() {
               )}
 
               <Button type="submit" disabled={loadingRegistration} className="w-full h-14 text-lg font-bold mt-4 shadow-lg active:scale-95 transition-all">
-                {loadingRegistration ? <Loader2 className="animate-spin" /> : "دخول مباشر"}
+                {loadingRegistration ? <Loader2 className="animate-spin" /> : (isRegistered ? "دخول سريع" : "تسجيل ودخول")}
               </Button>
               <Link href="/" className="block text-center mt-2">
                 <Button variant="ghost" className="w-full">رجوع للرئيسية</Button>
@@ -371,7 +372,7 @@ export default function CustomerDashboard() {
           </h1>
         </div>
         <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20">
-          أهلاً، {formData.customerName || "عميل"}
+          أهلاً، {profile?.name || formData.customerName || "عميل"}
         </Badge>
       </header>
 
@@ -379,13 +380,13 @@ export default function CustomerDashboard() {
         <div className="w-full md:w-96 bg-white border-l overflow-y-auto p-4 space-y-4 shadow-xl z-10 hidden md:block">
           <div className="p-2">
             <h2 className="text-sm font-bold text-muted-foreground mb-4">
-              {loadingDrivers ? "جاري البحث..." : `تم العثور على ${nearestAgencies.length} موزع`}
+              {loadingDrivers ? "جاري البحث..." : `تم العثور على ${nearestAgencies.length} موزع متاح`}
             </h2>
             <div className="space-y-3">
               {nearestAgencies.length === 0 && !loadingDrivers && (
                 <div className="p-8 text-center bg-slate-50 rounded-2xl border-2 border-dashed">
                   <Truck className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-                  <p className="text-xs text-muted-foreground">لا يوجد موزعين متاحين حالياً</p>
+                  <p className="text-xs text-muted-foreground">لا يوجد موزعين متاحين حالياً في منطقتك</p>
                 </div>
               )}
               {nearestAgencies.map((agency) => (
@@ -463,3 +464,4 @@ export default function CustomerDashboard() {
     </div>
   );
 }
+
