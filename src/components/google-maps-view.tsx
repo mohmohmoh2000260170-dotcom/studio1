@@ -6,8 +6,7 @@ import dynamic from 'next/dynamic';
 import { Navigation } from 'lucide-react';
 
 /**
- * Dynamic import for Leaflet components to prevent server-side rendering issues.
- * Leaflet requires 'window' to be defined.
+ * استيراد ديناميكي لمكونات Leaflet لمنع مشاكل الصيرورة في جانب الخادم.
  */
 const MapContainer = dynamic(() => import('react-leaflet').then((mod) => mod.MapContainer), { ssr: false });
 const TileLayer = dynamic(() => import('react-leaflet').then((mod) => mod.TileLayer), { ssr: false });
@@ -23,21 +22,15 @@ interface MarkerProps {
   isOnline?: boolean;
 }
 
-/**
- * GoogleMapsView component using OpenStreetMap and Leaflet (Free stack).
- * Displays customer location and nearby gas delivery agencies.
- */
 export function GoogleMapsView({ markers }: { markers: MarkerProps[] }) {
   const [L, setL] = useState<any>(null);
   const [mounted, setMounted] = useState(false);
   
-  // Center on current user location or default to Amman
   const centerMarker = markers.find(m => m.id === 'me') || markers[0];
   const centerPosition: [number, number] = centerMarker ? [centerMarker.lat, centerMarker.lng] : [31.9454, 35.9284];
 
   useEffect(() => {
     setMounted(true);
-    // Asynchronously import Leaflet on the client
     import('leaflet').then((leaflet) => {
       setL(leaflet);
     });
@@ -49,10 +42,6 @@ export function GoogleMapsView({ markers }: { markers: MarkerProps[] }) {
     </div>
   );
 
-  /**
-   * Creates a custom div icon for markers.
-   * This uses raw HTML strings to avoid hydration mismatches with dynamic React elements.
-   */
   const createIcon = (type: 'driver' | 'customer', isOnline?: boolean) => {
     const colorClass = type === 'driver' ? 'bg-[#FA6619]' : 'bg-[#B31E1E]';
     const animationClass = isOnline ? 'animate-pulse' : '';
@@ -86,7 +75,7 @@ export function GoogleMapsView({ markers }: { markers: MarkerProps[] }) {
         zoomControl={false}
       >
         <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         {markers.map((marker) => (
@@ -98,14 +87,12 @@ export function GoogleMapsView({ markers }: { markers: MarkerProps[] }) {
             <Popup>
               <div className="text-right font-bold text-xs" dir="rtl">
                 {marker.name}
-                {marker.type === 'driver' && !marker.isOnline && " (مشغول)"}
               </div>
             </Popup>
           </Marker>
         ))}
       </MapContainer>
 
-      {/* Recenter/Refresh Button */}
       <div className="absolute bottom-6 left-6 z-[1000] flex flex-col gap-3">
         <button 
           className="bg-white p-3 rounded-full shadow-xl border hover:bg-slate-50 transition-colors active:scale-90"
@@ -113,11 +100,6 @@ export function GoogleMapsView({ markers }: { markers: MarkerProps[] }) {
         >
           <Navigation className="w-6 h-6 text-primary" />
         </button>
-      </div>
-
-      <div className="absolute top-6 right-6 z-[1000] bg-white/95 backdrop-blur px-4 py-1.5 rounded-full text-xs font-bold border shadow-xl flex items-center gap-2">
-        <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-        مباشر: الأردن
       </div>
     </div>
   );
