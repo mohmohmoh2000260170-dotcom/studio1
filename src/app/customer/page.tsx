@@ -84,6 +84,7 @@ export default function CustomerDashboard() {
   const firestore = useFirestore();
   const router = useRouter();
   
+  const [mounted, setMounted] = useState(false);
   const [step, setStep] = useState<'auth' | 'discovery'>('auth');
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [isRinging, setIsRinging] = useState(false);
@@ -107,6 +108,7 @@ export default function CustomerDashboard() {
   });
 
   useEffect(() => {
+    setMounted(true);
     const savedId = localStorage.getItem('customerId');
     const isRegistered = localStorage.getItem('isRegistered') === 'true';
     
@@ -123,7 +125,7 @@ export default function CustomerDashboard() {
   }, []);
 
   useEffect(() => {
-    if (typeof window !== 'undefined' && navigator.geolocation) {
+    if (mounted && step === 'discovery' && navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
           setLocation({ lat: position.coords.latitude, lng: position.coords.longitude });
@@ -132,7 +134,7 @@ export default function CustomerDashboard() {
         { enableHighAccuracy: true }
       );
     }
-  }, [step]);
+  }, [mounted, step]);
 
   const customerDocRef = useMemo(() => {
     if (!firestore || !customerId) return null;
@@ -180,11 +182,6 @@ export default function CustomerDashboard() {
     
     setLoading(true);
 
-    const forceNav = setTimeout(() => {
-      if (customerId) setStep('discovery');
-      setLoading(false);
-    }, 5000);
-
     try {
       const currentDeviceId = getDeviceId();
       const newSessionId = Math.random().toString(36).substring(2, 15);
@@ -218,6 +215,7 @@ export default function CustomerDashboard() {
         localStorage.setItem('sessionId', newSessionId);
         localStorage.setItem('isRegistered', 'true');
         setCustomerId(targetId);
+        setStep('discovery');
       } else {
         if (!snap.empty) {
           throw new Error("هذا الرقم مسجل مسبقاً، يرجى تسجيل الدخول أو استخدام رقم آخر");
@@ -244,14 +242,12 @@ export default function CustomerDashboard() {
         localStorage.setItem('sessionId', newSessionId);
         localStorage.setItem('isRegistered', 'true');
         setCustomerId(uid);
+        setStep('discovery');
       }
-
-      clearTimeout(forceNav);
-      setStep('discovery');
     } catch (err: any) {
-      clearTimeout(forceNav);
-      setLoading(false);
       setErrorMsg(err.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -333,6 +329,8 @@ export default function CustomerDashboard() {
     setStep('auth');
     setCustomerId(null);
   };
+
+  if (!mounted) return <div className="min-h-screen bg-[#FBF3EE] flex items-center justify-center"><Loader2 className="animate-spin" /></div>;
 
   if (step === 'auth') {
     return (

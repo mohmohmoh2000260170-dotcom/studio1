@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -30,12 +31,14 @@ export function useCollection<T = DocumentData>(query: Query<T> | null) {
           ...doc.data(),
           id: doc.id,
         }));
-        setData(items);
+        setData(items as T[]);
         setLoading(false);
       },
       async (serverError: FirestoreError) => {
+        // Defensive check for internal path access
+        const path = (query as any)?._query?.path?.toString() || 'unknown';
         const permissionError = new FirestorePermissionError({
-          path: (query as any)._query?.path?.toString() || 'unknown',
+          path: path,
           operation: 'list',
         });
         errorEmitter.emit('permission-error', permissionError);
