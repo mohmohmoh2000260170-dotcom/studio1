@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect } from 'react';
@@ -6,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Truck, FileText, Phone, User, Loader2, ArrowRight, MapPin, Lock, AlertCircle } from 'lucide-react';
+import { Truck, FileText, Phone, User, Loader2, ArrowRight, MapPin, Lock, AlertCircle, Home } from 'lucide-react';
 import { useFirestore, errorEmitter } from '@/firebase';
 import { collection, addDoc, serverTimestamp, query, where, getDocs } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
@@ -192,10 +191,17 @@ export default function DriverRegistration() {
               {loading ? <Loader2 className="animate-spin ml-2" /> : null}
               تقديم الطلب
             </Button>
+            
             <Link href="/driver/login">
-              <Button variant="ghost" className="w-full mt-2 gap-2">
+              <Button variant="outline" className="w-full mt-2 gap-2 h-12">
                 لديك حساب؟ تسجيل الدخول
                 <ArrowRight className="w-4 h-4" />
+              </Button>
+            </Link>
+
+            <Link href="/">
+              <Button variant="ghost" className="w-full mt-2 gap-2 text-muted-foreground">
+                <Home className="w-4 h-4" /> رجوع للرئيسية
               </Button>
             </Link>
           </form>

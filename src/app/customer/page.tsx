@@ -22,7 +22,8 @@ import {
   UserPlus,
   AlertCircle,
   MessageSquare,
-  History
+  History,
+  Home
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore, useCollection, useMemoFirebase, errorEmitter, useDoc } from '@/firebase';
@@ -182,7 +183,7 @@ export default function CustomerDashboard() {
         localStorage.setItem('sessionId', newSessionId);
         localStorage.setItem('isRegistered', 'true');
         
-        router.replace('/customer'); // انتقال فوري
+        router.replace('/customer'); 
         setCustomerId(docSnap.id);
         setStep('discovery');
       } else {
@@ -343,6 +344,12 @@ export default function CustomerDashboard() {
               <Button type="submit" disabled={loading} className="w-full h-14 text-lg font-bold">
                 {loading ? <Loader2 className="animate-spin" /> : "دخول"}
               </Button>
+              
+              <Link href="/" className="block">
+                <Button variant="ghost" className="w-full h-12 text-muted-foreground gap-2">
+                  <Home className="w-4 h-4" /> رجوع للرئيسية
+                </Button>
+              </Link>
             </form>
           </CardContent>
         </Card>
