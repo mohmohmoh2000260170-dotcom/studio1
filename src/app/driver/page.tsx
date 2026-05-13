@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Flame, MapPin, Clock, ArrowRight, Truck, ShoppingCart, Phone, ExternalLink, ShieldAlert } from 'lucide-react';
+import { Flame, MapPin, Clock, ArrowRight, Truck, ShoppingCart, Phone, ExternalLink, ShieldAlert, XCircle } from 'lucide-react';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, where, orderBy, getDocs } from 'firebase/firestore';
 import Link from 'next/link';
@@ -47,17 +47,26 @@ export default function DriverDashboard() {
     if (!firestore || !driverId) return;
 
     const fetchDriver = async () => {
-      const q = query(collection(firestore, "drivers"), where("uid", "==", driverId));
-      const snap = await getDocs(q);
-      if (!snap.empty) {
-        const doc = snap.docs[0];
-        setDriverInfo({ id: doc.id, ...doc.data() } as DriverInfo);
+      try {
+        const q = query(collection(firestore, "drivers"), where("uid", "==", driverId));
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          const doc = snap.docs[0];
+          setDriverInfo({ id: doc.id, ...doc.data() } as DriverInfo);
+        } else {
+          // If logged in but no record, might need to re-register or clear storage
+          localStorage.removeItem('driverId');
+          router.push('/driver/register');
+        }
+      } catch (e) {
+        console.error("Error fetching driver info", e);
+      } finally {
+        setLoadingInfo(false);
       }
-      setLoadingInfo(false);
     };
 
     fetchDriver();
-  }, [firestore, driverId]);
+  }, [firestore, driverId, router]);
 
   const requestsQuery = useMemoFirebase(() => {
     if (!firestore || driverInfo?.status !== 'approved') return null;
@@ -80,18 +89,10 @@ export default function DriverDashboard() {
     </div>
   );
 
-  if (!driverInfo) return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center">
-      <h1 className="text-xl font-bold">لم يتم العثور على حسابك</h1>
-      <Link href="/driver/register" className="mt-4">
-        <Button>سجل الآن</Button>
-      </Link>
-    </div>
-  );
-
-  if (driverInfo.status === 'pending') {
+  // Status: Pending - Show the "Waiting for Approval" screen
+  if (driverInfo?.status === 'pending') {
     return (
-      <div className="min-h-screen bg-[#FBF3EE] flex flex-col items-center justify-center p-6 text-center">
+      <div className="min-h-screen bg-[#FBF3EE] flex flex-col items-center justify-center p-6 text-center" dir="rtl">
         <div className="bg-white p-8 rounded-3xl shadow-xl border-2 border-primary/10 max-w-md space-y-6">
           <div className="mx-auto bg-amber-100 p-6 rounded-full w-fit animate-pulse">
             <ShieldAlert className="w-16 h-16 text-amber-600" />
@@ -101,7 +102,7 @@ export default function DriverDashboard() {
             أهلاً يا {driverInfo.name}. تم التحقق من رقم هاتفك بنجاح. 
             حسابك حالياً قيد المراجعة من قبل الإدارة. سيتم تفعيل حسابك لتبدأ باستقبال الطلبات فور التأكد من بياناتك.
           </p>
-          <Link href="/">
+          <Link href="/" className="block">
             <Button variant="outline" className="w-full">العودة للرئيسية</Button>
           </Link>
         </div>
@@ -109,8 +110,29 @@ export default function DriverDashboard() {
     );
   }
 
+  // Status: Rejected
+  if (driverInfo?.status === 'rejected') {
+    return (
+      <div className="min-h-screen bg-[#FBF3EE] flex flex-col items-center justify-center p-6 text-center" dir="rtl">
+        <div className="bg-white p-8 rounded-3xl shadow-xl border-2 border-red-100 max-w-md space-y-6">
+          <div className="mx-auto bg-red-100 p-6 rounded-full w-fit">
+            <XCircle className="w-16 h-16 text-red-600" />
+          </div>
+          <h1 className="text-2xl font-bold text-foreground">تم رفض الطلب</h1>
+          <p className="text-muted-foreground leading-relaxed">
+            نعتذر منك يا {driverInfo.name}. لم تتم الموافقة على طلب انضمامك للشبكة حالياً. يرجى التواصل مع الإدارة لمزيد من التفاصيل.
+          </p>
+          <Link href="/" className="block">
+            <Button variant="outline" className="w-full">العودة للرئيسية</Button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  // Status: Approved - Show the Requests List
   return (
-    <div className="min-h-screen bg-[#FBF3EE] flex flex-col">
+    <div className="min-h-screen bg-[#FBF3EE] flex flex-col" dir="rtl">
       <header className="bg-white border-b px-6 py-4 flex items-center justify-between shadow-sm sticky top-0 z-10">
         <div className="flex items-center gap-4">
           <Link href="/">
@@ -150,7 +172,7 @@ export default function DriverDashboard() {
                   <CardTitle className="text-lg font-bold">{req.customerName}</CardTitle>
                   <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
                     <Clock className="w-3 h-3" />
-                    {req.timestamp?.toDate().toLocaleTimeString('ar-JO', { hour: '2-digit', minute: '2-digit' })}
+                    {req.timestamp?.toDate()?.toLocaleTimeString('ar-JO', { hour: '2-digit', minute: '2-digit' })}
                   </div>
                 </div>
                 <Badge className="bg-primary">جديد</Badge>
@@ -175,7 +197,7 @@ export default function DriverDashboard() {
 
                 <div className="flex items-start gap-3 text-sm px-1">
                   <MapPin className="w-4 h-4 text-primary mt-0.5" />
-                  <p className="text-muted-foreground">الإحداثيات: {req.lat.toFixed(6)}, {req.lng.toFixed(6)}</p>
+                  <p className="text-muted-foreground">الموقع: {req.lat.toFixed(6)}, {req.lng.toFixed(6)}</p>
                 </div>
 
                 <div className="flex gap-2">
@@ -185,12 +207,12 @@ export default function DriverDashboard() {
                     className="flex-1 h-12 gap-2 border-primary text-primary hover:bg-primary/5"
                   >
                     <ExternalLink className="w-4 h-4" />
-                    موقع GPS
+                    موقع الخريطة
                   </Button>
                   <Link href={`tel:${req.phoneNumber}`} className="flex-1">
                     <Button className="w-full h-12 gap-2 font-bold bg-primary hover:bg-primary/90">
                       <Phone className="w-4 h-4" />
-                      اتصال
+                      اتصال بالعميل
                     </Button>
                   </Link>
                 </div>

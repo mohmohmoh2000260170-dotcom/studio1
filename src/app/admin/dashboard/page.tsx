@@ -103,7 +103,7 @@ export default function AdminDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
+    <div className="min-h-screen bg-slate-50 flex flex-col" dir="rtl">
       <header className="bg-white border-b px-6 py-4 flex items-center justify-between shadow-sm sticky top-0 z-10">
         <div className="flex items-center gap-3">
           <div className="bg-primary p-2 rounded-lg">
@@ -122,16 +122,16 @@ export default function AdminDashboard() {
           <TabsList className="grid w-full grid-cols-2 h-12 bg-white border">
             <TabsTrigger value="drivers" className="text-base font-bold data-[state=active]:bg-primary data-[state=active]:text-white">
               <Truck className="w-4 h-4 ml-2" />
-              طلبات السائقين ({(drivers || []).length})
+              طلبات الشركات ({(drivers || []).length})
             </TabsTrigger>
             <TabsTrigger value="requests" className="text-base font-bold data-[state=active]:bg-primary data-[state=active]:text-white">
               <Bell className="w-4 h-4 ml-2" />
-              طلبات العملاء النشطة ({(requests || []).length})
+              طلبات العملاء الحالية ({(requests || []).length})
             </TabsTrigger>
           </TabsList>
 
           <TabsContent value="drivers" className="space-y-4">
-            <div className="mb-4">
+            <div className="mb-4 text-right">
               <h2 className="text-2xl font-bold text-slate-800">طلبات الانضمام المعلقة</h2>
               <p className="text-muted-foreground mt-1">قم بمراجعة بيانات الشركات والسائقين قبل تفعيل الحسابات</p>
             </div>
@@ -146,45 +146,45 @@ export default function AdminDashboard() {
                   <div className="bg-slate-100 p-4 rounded-full w-fit mx-auto">
                     <Check className="w-8 h-8 text-slate-400" />
                   </div>
-                  <p className="text-muted-foreground font-medium">لا يوجد طلبات معلقة حالياً</p>
+                  <p className="text-muted-foreground font-medium">لا يوجد طلبات انضمام معلقة</p>
                 </CardContent>
               </Card>
             ) : (
               <div className="grid gap-4">
                 {drivers.map((driver) => (
                   <Card key={driver.id} className="overflow-hidden border-2 hover:border-primary/20 transition-all shadow-sm">
-                    <CardContent className="p-0">
-                      <div className="flex flex-col md:flex-row">
+                    <CardContent className="p-0 text-right">
+                      <div className="flex flex-col md:flex-row-reverse">
                         <div className="flex-1 p-6 space-y-4">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
+                          <div className="flex items-center justify-between flex-row-reverse">
+                            <div className="flex items-center gap-3 flex-row-reverse">
                               <div className="bg-primary/10 p-2 rounded-full">
                                 <User className="w-5 h-5 text-primary" />
                               </div>
                               <h3 className="text-lg font-bold">{driver.name}</h3>
                             </div>
-                            <Badge variant="secondary" className="bg-amber-100 text-amber-700">قيد الانتظار</Badge>
+                            <Badge variant="secondary" className="bg-amber-100 text-amber-700">قيد المراجعة</Badge>
                           </div>
                           
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="flex items-center gap-2 text-sm text-slate-600">
+                            <div className="flex items-center gap-2 text-sm text-slate-600 justify-end">
+                              {driver.phone} <span className="font-medium">:رقم الهاتف</span>
                               <Phone className="w-4 h-4 text-muted-foreground" />
-                              <span className="font-medium">رقم الهاتف:</span> {driver.phone}
                             </div>
-                            <div className="flex items-center gap-2 text-sm text-slate-600">
+                            <div className="flex items-center gap-2 text-sm text-slate-600 justify-end">
+                              {driver.companyLicense} <span className="font-medium">:الرخصة</span>
                               <FileText className="w-4 h-4 text-muted-foreground" />
-                              <span className="font-medium">الرخصة:</span> {driver.companyLicense}
                             </div>
                           </div>
                         </div>
                         
-                        <div className="bg-slate-50 border-t md:border-t-0 md:border-r p-4 flex md:flex-col gap-2 justify-center min-w-[160px]">
+                        <div className="bg-slate-50 border-t md:border-t-0 md:border-l p-4 flex md:flex-col gap-2 justify-center min-w-[160px]">
                           <Button 
                             onClick={() => handleUpdateStatus(driver.id, 'approved')}
                             className="flex-1 bg-green-600 hover:bg-green-700 gap-2 font-bold"
                           >
                             <Check className="w-4 h-4" />
-                            موافقة
+                            تفعيل الحساب
                           </Button>
                           <Button 
                             onClick={() => handleUpdateStatus(driver.id, 'rejected')}
@@ -192,7 +192,7 @@ export default function AdminDashboard() {
                             className="flex-1 text-red-600 border-red-200 hover:bg-red-50 gap-2 font-bold"
                           >
                             <X className="w-4 h-4" />
-                            رفض
+                            رفض الطلب
                           </Button>
                         </div>
                       </div>
@@ -204,9 +204,9 @@ export default function AdminDashboard() {
           </TabsContent>
 
           <TabsContent value="requests" className="space-y-4">
-            <div className="mb-4">
-              <h2 className="text-2xl font-bold text-slate-800">طلبات التوصيل الحالية</h2>
-              <p className="text-muted-foreground mt-1">عرض الطلبات التي أرسلها العملاء حالياً عبر الخارطة</p>
+            <div className="mb-4 text-right">
+              <h2 className="text-2xl font-bold text-slate-800">طلبات التوصيل النشطة</h2>
+              <p className="text-muted-foreground mt-1">إجمالي الطلبات التي أرسلها العملاء حالياً</p>
             </div>
 
             {loadingRequests ? (
@@ -219,16 +219,16 @@ export default function AdminDashboard() {
                   <div className="bg-slate-100 p-4 rounded-full w-fit mx-auto">
                     <Bell className="w-8 h-8 text-slate-400" />
                   </div>
-                  <p className="text-muted-foreground font-medium">لا يوجد طلبات نشطة حالياً</p>
+                  <p className="text-muted-foreground font-medium">لا توجد طلبات توصيل نشطة</p>
                 </CardContent>
               </Card>
             ) : (
               <div className="grid gap-4">
                 {requests.map((req) => (
-                  <Card key={req.id} className="border-2 hover:border-primary/20 transition-all shadow-sm">
+                  <Card key={req.id} className="border-2 hover:border-primary/20 transition-all shadow-sm text-right">
                     <CardContent className="p-6 space-y-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
+                      <div className="flex items-center justify-between flex-row-reverse">
+                        <div className="flex items-center gap-3 flex-row-reverse">
                           <div className="bg-blue-100 p-2 rounded-full text-blue-600">
                             <User className="w-5 h-5" />
                           </div>
@@ -236,22 +236,22 @@ export default function AdminDashboard() {
                         </div>
                         <div className="flex items-center gap-2 text-xs text-slate-400">
                           <Clock className="w-3 h-3" />
-                          {req.timestamp?.toDate().toLocaleTimeString('ar-JO', { hour: '2-digit', minute: '2-digit' })}
+                          {req.timestamp?.toDate()?.toLocaleTimeString('ar-JO', { hour: '2-digit', minute: '2-digit' })}
                         </div>
                       </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="flex items-center gap-2 text-sm">
+                        <div className="flex items-center gap-2 text-sm justify-end">
+                          {req.cylinders} <span className="font-medium">:عدد الأسطوانات</span>
                           <ShoppingCart className="w-4 h-4 text-primary" />
-                          <span className="font-medium">الأسطوانات:</span> {req.cylinders}
                         </div>
-                        <div className="flex items-center gap-2 text-sm">
+                        <div className="flex items-center gap-2 text-sm justify-end">
+                          {req.phoneNumber} <span className="font-medium">:رقم الهاتف</span>
                           <Phone className="w-4 h-4 text-primary" />
-                          <span className="font-medium">رقم الهاتف:</span> {req.phoneNumber}
                         </div>
-                        <div className="flex items-center gap-2 text-sm text-blue-600">
+                        <div className="flex items-center gap-2 text-sm text-blue-600 justify-end">
+                          GPS: {req.lat.toFixed(4)}, {req.lng.toFixed(4)}
                           <MapPin className="w-4 h-4" />
-                          <span className="font-medium truncate">GPS: {req.lat.toFixed(4)}, {req.lng.toFixed(4)}</span>
                         </div>
                       </div>
 
@@ -260,7 +260,7 @@ export default function AdminDashboard() {
                         className="w-full text-xs h-8"
                         onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${req.lat},${req.lng}`, '_blank')}
                       >
-                        فتح الموقع في خرائط جوجل
+                        عرض موقع العميل على الخريطة
                       </Button>
                     </CardContent>
                   </Card>

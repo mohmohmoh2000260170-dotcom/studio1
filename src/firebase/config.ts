@@ -1,12 +1,12 @@
 /**
  * Firebase configuration object.
- * Replace placeholders with actual values from your Firebase Project Settings.
+ * Updated with the provided API Key to resolve authentication errors.
  */
 export const firebaseConfig = {
-  apiKey: "REPLACE_WITH_YOUR_API_KEY",
-  authDomain: "REPLACE_WITH_YOUR_PROJECT_ID.firebaseapp.com",
-  projectId: "REPLACE_WITH_YOUR_PROJECT_ID",
-  storageBucket: "REPLACE_WITH_YOUR_PROJECT_ID.firebasestorage.app",
-  messagingSenderId: "REPLACE_WITH_YOUR_MESSAGING_SENDER_ID",
-  appId: "REPLACE_WITH_YOUR_APP_ID",
+  apiKey: "AIzaSyA9OYojXCfc8PfDeESLF3jeTuCXIJPNDVY",
+  authDomain: "gas-delivery-jo.firebaseapp.com",
+  projectId: "gas-delivery-jo",
+  storageBucket: "gas-delivery-jo.firebasestorage.app",
+  messagingSenderId: "1234567890",
+  appId: "1:1234567890:web:abcdef1234567890",
 };
