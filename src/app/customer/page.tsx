@@ -3,18 +3,14 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { GoogleMapsView } from '@/components/google-maps-view';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { 
-  Bell, 
   Loader2, 
   ArrowRight, 
-  Phone, 
-  MapPin, 
   Navigation,
-  Truck,
   User,
   Plus,
   Minus,
@@ -22,7 +18,8 @@ import {
   UserPlus,
   AlertCircle,
   MessageSquare,
-  Home
+  Home,
+  RotateCcw
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
@@ -94,15 +91,22 @@ export default function CustomerDashboard() {
     }
   }, []);
 
-  useEffect(() => {
-    if (mounted && step === 'discovery' && navigator.geolocation) {
+  const refreshLocation = () => {
+    if (typeof window !== 'undefined' && navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
           setLocation({ lat: position.coords.latitude, lng: position.coords.longitude });
+          toast({ title: "تم تحديث الموقع" });
         },
-        null,
+        () => toast({ variant: "destructive", title: "فشل تحديث الموقع" }),
         { enableHighAccuracy: true }
       );
+    }
+  };
+
+  useEffect(() => {
+    if (mounted && step === 'discovery') {
+      refreshLocation();
     }
   }, [mounted, step]);
 
@@ -322,7 +326,7 @@ export default function CustomerDashboard() {
                 {loading ? <Loader2 className="animate-spin" /> : "دخول"}
               </Button>
               
-              <Link href="/" className="block">
+              <Link href="/" className="block text-center mt-4">
                 <Button variant="ghost" className="w-full h-12 text-muted-foreground gap-2">
                   <Home className="w-4 h-4" /> رجوع للرئيسية
                 </Button>
@@ -343,7 +347,10 @@ export default function CustomerDashboard() {
             <Navigation className="w-5 h-5" /> غاز دليفري
           </h1>
         </div>
-        <Badge variant="outline" className="bg-primary/5 text-primary">{profile?.name || "عميل"}</Badge>
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="icon" onClick={() => window.location.reload()} className="text-slate-400 hover:text-primary"><RotateCcw className="w-4 h-4" /></Button>
+          <Badge variant="outline" className="bg-primary/5 text-primary">{profile?.name || "عميل"}</Badge>
+        </div>
       </header>
 
       <div className="flex-1 relative">

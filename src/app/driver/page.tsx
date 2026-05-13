@@ -1,8 +1,7 @@
-
 "use client";
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
@@ -10,20 +9,19 @@ import {
   Flame, 
   MapPin, 
   Clock, 
-  Truck, 
   ShoppingCart, 
   Phone, 
   LogOut, 
   Activity,
   Loader2,
-  AlertTriangle
+  AlertTriangle,
+  RotateCcw
 } from 'lucide-react';
-import { useFirestore, useCollection, useMemoFirebase, errorEmitter, useDoc } from '@/firebase';
+import { useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
 import { collection, query, where, orderBy, getDocs, doc, updateDoc } from 'firebase/firestore';
-import { FirestorePermissionError } from '@/firebase/errors';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
+import Link from 'next/link';
 
 interface GasRequest {
   id: string;
@@ -74,13 +72,12 @@ export default function DriverDashboard() {
           const docSnap = snap.docs[0];
           setDriverData({ id: docSnap.id, ...docSnap.data() } as DriverInfo);
         } else {
-          // Record deleted
           handleLogout();
         }
       } catch (e) { console.error(e); } finally { setLoadingInfo(false); }
     };
     fetchDriver();
-  }, [firestore, driverId, router]);
+  }, [firestore, driverId]);
 
   const driverDocRef = useMemo(() => {
     if (!firestore || !driverData?.id) return null;
@@ -89,10 +86,8 @@ export default function DriverDashboard() {
 
   const { data: realTimeDriver, loading: loadingRealTime } = useDoc<DriverInfo>(driverDocRef);
 
-  // CRITICAL: Single Device and Deletion Policy
   useEffect(() => {
-    // If document was deleted while online
-    if (driverId && !loadingRealTime && !realTimeDriver) {
+    if (driverId && !loadingRealTime && !realTimeDriver && !loadingInfo) {
       handleLogout();
       return;
     }
@@ -108,19 +103,20 @@ export default function DriverDashboard() {
         handleLogout();
       }
     }
-  }, [realTimeDriver, loadingRealTime, driverId]);
+  }, [realTimeDriver, loadingRealTime, driverId, loadingInfo]);
 
   useEffect(() => {
     if (!firestore || !realTimeDriver || realTimeDriver.status !== 'approved' || realTimeDriver.availability !== 'available') return;
     const updateLocation = () => {
-      if (!navigator.geolocation) return;
-      navigator.geolocation.getCurrentPosition((pos) => {
-        updateDoc(doc(firestore, "drivers", driverData!.id), {
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude,
-          lastSeen: new Date().toISOString()
-        }).catch(() => {});
-      }, () => setGpsError("يرجى تفعيل GPS"), { enableHighAccuracy: true });
+      if (typeof window !== 'undefined' && navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition((pos) => {
+          updateDoc(doc(firestore, "drivers", driverData!.id), {
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+            lastSeen: new Date().toISOString()
+          }).catch(() => {});
+        }, () => setGpsError("يرجى تفعيل GPS"), { enableHighAccuracy: true });
+      }
     };
     const interval = setInterval(updateLocation, 30000);
     updateLocation();
@@ -132,7 +128,7 @@ export default function DriverDashboard() {
     return query(collection(firestore, "requests"), where("status", "==", "pending"), orderBy("timestamp", "desc"));
   }, [firestore, realTimeDriver]);
 
-  const { data: requests, loading: loadingRequests } = useCollection<GasRequest>(requestsQuery);
+  const { data: requests } = useCollection<GasRequest>(requestsQuery);
 
   const toggleAvailability = async () => {
     if (!firestore || !driverData) return;
@@ -144,6 +140,10 @@ export default function DriverDashboard() {
   const handleLogout = () => {
     localStorage.clear();
     router.push('/driver/login');
+  };
+
+  const handleRefresh = () => {
+    window.location.reload();
   };
 
   if (loadingInfo) return <div className="min-h-screen flex items-center justify-center bg-[#FBF3EE]"><Loader2 className="animate-spin text-primary" /></div>;
@@ -169,6 +169,7 @@ export default function DriverDashboard() {
           <h1 className="text-lg font-bold text-primary">لوحة السائق</h1>
         </div>
         <div className="flex items-center gap-4">
+          <Button variant="ghost" size="icon" onClick={handleRefresh} className="text-slate-400 hover:text-primary"><RotateCcw className="w-4 h-4" /></Button>
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold text-slate-500">{realTimeDriver?.availability === 'available' ? 'متاح' : 'مشغول'}</span>
             <Switch checked={realTimeDriver?.availability === 'available'} onCheckedChange={toggleAvailability} />

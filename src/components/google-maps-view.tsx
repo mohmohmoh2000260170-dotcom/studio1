@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { Navigation } from 'lucide-react';
+import { Navigation, RotateCcw } from 'lucide-react';
 
 const MapContainer = dynamic(() => import('react-leaflet').then((mod) => mod.MapContainer), { ssr: false });
 const TileLayer = dynamic(() => import('react-leaflet').then((mod) => mod.TileLayer), { ssr: false });
@@ -86,10 +86,24 @@ export function GoogleMapsView({ markers }: { markers: MarkerProps[] }) {
         ))}
       </MapContainer>
 
-      <div className="absolute bottom-6 left-6 z-[1000]">
+      <div className="absolute bottom-6 left-6 z-[1000] flex flex-col gap-2">
         <button 
-          className="bg-white p-3 rounded-full shadow-lg border hover:bg-slate-50"
+          className="bg-white p-3 rounded-full shadow-lg border hover:bg-slate-50 transition-all active:scale-95"
           onClick={() => window.location.reload()}
+          title="إعادة تحميل التطبيق"
+        >
+          <RotateCcw className="w-6 h-6 text-slate-600" />
+        </button>
+        <button 
+          className="bg-white p-3 rounded-full shadow-lg border hover:bg-slate-50 transition-all active:scale-95"
+          onClick={() => {
+            if (navigator.geolocation) {
+              navigator.geolocation.getCurrentPosition((pos) => {
+                window.location.href = `?lat=${pos.coords.latitude}&lng=${pos.coords.longitude}`;
+              });
+            }
+          }}
+          title="تحديث الموقع"
         >
           <Navigation className="w-6 h-6 text-primary" />
         </button>
