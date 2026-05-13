@@ -47,7 +47,7 @@ export function GoogleMapsView({ markers }: { markers: MarkerProps[] }) {
     const animationClass = isOnline ? 'animate-pulse' : '';
     
     const iconHtml = `
-      <div style="padding: 8px; border-radius: 9999px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); border: 2px solid white; display: flex; align-items: center; justify-content: center; width: 32px; height: 32px;" class="${colorClass} ${animationClass}">
+      <div style="padding: 8px; border-radius: 9999px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); border: 2px solid white; display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; background-color: ${type === 'driver' ? '#FA6619' : '#B31E1E'};" class="${animationClass}">
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           ${type === 'driver' 
             ? '<path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/><path d="M15 18H9"/><path d="M19 18h2a1 1 0 0 0 1-1v-3.28a1 1 0 0 0-.684-.948l-4.893-1.631A2 2 0 0 1 15 9.186V18"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/>'
@@ -75,7 +75,7 @@ export function GoogleMapsView({ markers }: { markers: MarkerProps[] }) {
         zoomControl={false}
       >
         <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+          attribution='&copy; OpenStreetMap contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         {markers.map((marker) => (
