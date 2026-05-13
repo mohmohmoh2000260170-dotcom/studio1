@@ -24,7 +24,8 @@ import {
   CheckCircle2,
   RefreshCw,
   UserPlus,
-  LogIn
+  LogIn,
+  AlertCircle
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore, useCollection, useMemoFirebase, errorEmitter, useDoc } from '@/firebase';
@@ -33,6 +34,7 @@ import { FirestorePermissionError } from '@/firebase/errors';
 import { getDeviceId } from '@/lib/device';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 
 interface Driver {
   id: string;
@@ -49,6 +51,7 @@ interface CustomerProfile {
   deviceId: string;
   pin: string;
   name: string;
+  phone: string;
 }
 
 const PRICE_PER_CYLINDER = 7;
@@ -77,7 +80,7 @@ export default function CustomerDashboard() {
   const [loading, setLoading] = useState(false);
   const [location, setLocation] = useState({ lat: 31.9454, lng: 35.9284 });
   const [customerId, setCustomerId] = useState<string | null>(null);
-  const [securityAlert, setSecurityAlert] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   
   const [formData, setFormData] = useState({
     customerName: '',
@@ -86,7 +89,6 @@ export default function CustomerDashboard() {
     cylinders: 1,
   });
 
-  // Auto-Login & Mode Selection
   useEffect(() => {
     const savedId = localStorage.getItem('customerId');
     const isRegistered = localStorage.getItem('isRegistered') === 'true';
@@ -103,7 +105,6 @@ export default function CustomerDashboard() {
     }
   }, []);
 
-  // Location detection
   useEffect(() => {
     if (typeof window !== 'undefined' && navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
@@ -116,7 +117,6 @@ export default function CustomerDashboard() {
     }
   }, [step]);
 
-  // Session Management
   const customerDocRef = useMemo(() => {
     if (!firestore || !customerId) return null;
     return doc(firestore, "customers", customerId);
@@ -154,31 +154,30 @@ export default function CustomerDashboard() {
   const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (loading) return;
+    setErrorMsg(null);
 
     if (!formData.phoneNumber || formData.pin.length !== 4) {
-      toast({ variant: "destructive", title: "بيانات ناقصة", description: "يرجى إدخال الهاتف ورمز PIN" });
+      setErrorMsg("يرجى إدخال الهاتف ورمز PIN المكون من 4 أرقام");
       return;
     }
     
     setLoading(true);
-    setSecurityAlert(null);
 
-    // FORCE NAVIGATION FAILSAFE: 2 seconds
     const forceNav = setTimeout(() => {
-      setStep('discovery');
+      if (customerId) setStep('discovery');
       setLoading(false);
-    }, 2000);
+    }, 3000);
 
     try {
       const currentDeviceId = getDeviceId();
       const newSessionId = Math.random().toString(36).substring(2, 15);
       
-      if (authMode === 'login') {
-        const q = query(collection(firestore, "customers"), where("phone", "==", formData.phoneNumber));
-        const snap = await getDocs(q);
+      const q = query(collection(firestore, "customers"), where("phone", "==", formData.phoneNumber));
+      const snap = await getDocs(q);
 
+      if (authMode === 'login') {
         if (snap.empty) {
-          throw new Error("رقم الهاتف غير مسجل. يرجى استخدام 'تسجيل جديد'");
+          throw new Error("رقم الهاتف غير مسجل. يرجى تسجيل حساب جديد أولاً.");
         }
 
         const docSnap = snap.docs[0];
@@ -187,12 +186,12 @@ export default function CustomerDashboard() {
         if (data.pin !== formData.pin) {
           throw new Error("رمز PIN غير صحيح");
         }
+        
         if (data.deviceId && data.deviceId !== currentDeviceId) {
           throw new Error("تنبيه أمني: هذا الحساب مرتبط بجهاز آخر.");
         }
 
         const targetId = docSnap.id;
-        // Background update
         updateDoc(doc(firestore, "customers", targetId), { 
           sessionId: newSessionId, 
           lastSeen: serverTimestamp() 
@@ -204,6 +203,10 @@ export default function CustomerDashboard() {
         setCustomerId(targetId);
       } else {
         // REGISTRATION
+        if (!snap.empty) {
+          throw new Error("هذا الرقم مسجل مسبقاً، يرجى تسجيل الدخول أو استخدام رقم آخر");
+        }
+
         if (!formData.customerName) {
           throw new Error("يرجى إدخال اسمك للتسجيل");
         }
@@ -219,8 +222,7 @@ export default function CustomerDashboard() {
           timestamp: serverTimestamp(),
         };
 
-        // Background write
-        setDoc(doc(firestore, "customers", uid), customerData);
+        await setDoc(doc(firestore, "customers", uid), customerData);
 
         localStorage.setItem('customerId', uid);
         localStorage.setItem('sessionId', newSessionId);
@@ -233,11 +235,7 @@ export default function CustomerDashboard() {
     } catch (err: any) {
       clearTimeout(forceNav);
       setLoading(false);
-      if (err.message.includes("تنبيه أمني")) {
-        setSecurityAlert(err.message);
-      } else {
-        toast({ variant: "destructive", title: "فشل الدخول", description: err.message });
-      }
+      setErrorMsg(err.message);
     }
   };
 
@@ -277,11 +275,6 @@ export default function CustomerDashboard() {
     setCustomerId(null);
   };
 
-  const clearStuckData = () => {
-    localStorage.clear();
-    window.location.reload();
-  };
-
   if (step === 'auth') {
     return (
       <div className="min-h-screen bg-[#FBF3EE] flex flex-col items-center justify-center p-6 text-right" dir="rtl">
@@ -294,7 +287,7 @@ export default function CustomerDashboard() {
                 variant={authMode === 'login' ? 'default' : 'outline'} 
                 size="sm"
                 className="flex-1 font-bold gap-2"
-                onClick={() => setAuthMode('login')}
+                onClick={() => { setAuthMode('login'); setErrorMsg(null); }}
               >
                 <LogIn className="w-4 h-4" /> دخول سريع
               </Button>
@@ -302,7 +295,7 @@ export default function CustomerDashboard() {
                 variant={authMode === 'register' ? 'default' : 'outline'} 
                 size="sm"
                 className="flex-1 font-bold gap-2"
-                onClick={() => setAuthMode('register')}
+                onClick={() => { setAuthMode('register'); setErrorMsg(null); }}
               >
                 <UserPlus className="w-4 h-4" /> تسجيل جديد
               </Button>
@@ -348,25 +341,22 @@ export default function CustomerDashboard() {
                 </div>
               )}
 
-              {securityAlert && (
-                <div className="bg-red-50 border border-red-200 p-3 rounded-xl flex items-center gap-3 text-red-700 text-xs font-bold">
-                  <ShieldAlert className="w-4 h-4 shrink-0" />
-                  <p>{securityAlert}</p>
-                </div>
+              {errorMsg && (
+                <Alert variant="destructive" className="bg-red-50 border-red-200">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription className="text-xs font-bold mr-2">
+                    {errorMsg}
+                  </AlertDescription>
+                </Alert>
               )}
 
               <Button type="submit" disabled={loading} className="w-full h-14 text-lg font-bold shadow-lg">
                 {loading ? <Loader2 className="animate-spin" /> : (authMode === 'login' ? "دخول" : "تسجيل ودخول")}
               </Button>
               
-              <div className="flex flex-col gap-2 mt-4">
-                <Link href="/" className="block">
-                  <Button variant="ghost" className="w-full text-xs">رجوع للرئيسية</Button>
-                </Link>
-                <Button variant="ghost" type="button" onClick={clearStuckData} className="text-red-400 text-[10px] hover:text-red-600">
-                  <RefreshCw className="w-3 h-3 ml-1" /> تصفير الذاكرة في حال التعليق
-                </Button>
-              </div>
+              <Link href="/" className="block mt-4">
+                <Button variant="ghost" className="w-full text-xs">رجوع للرئيسية</Button>
+              </Link>
             </form>
           </CardContent>
         </Card>

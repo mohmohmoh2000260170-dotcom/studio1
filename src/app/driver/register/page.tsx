@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Truck, FileText, Phone, User, Loader2, ArrowRight, MapPin, Lock } from 'lucide-react';
+import { Truck, FileText, Phone, User, Loader2, ArrowRight, MapPin, Lock, AlertCircle } from 'lucide-react';
 import { useFirestore, errorEmitter } from '@/firebase';
 import { collection, addDoc, serverTimestamp, query, where, getDocs } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
@@ -14,6 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { getDeviceId } from '@/lib/device';
 import Link from 'next/link';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 
 export default function DriverRegistration() {
   const router = useRouter();
@@ -21,6 +22,7 @@ export default function DriverRegistration() {
   const firestore = useFirestore();
 
   const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [location, setLocation] = useState({ lat: 31.9454, lng: 35.9284 });
   const [formData, setFormData] = useState({
     name: '',
@@ -45,21 +47,20 @@ export default function DriverRegistration() {
 
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorMsg(null);
+
     if (!formData.name || !formData.phone || !formData.companyLicense || formData.pin.length !== 4) {
-      toast({ variant: "destructive", title: "خطأ", description: "يرجى تعبئة جميع الحقول ووضع رمز PIN من 4 أرقام" });
+      setErrorMsg("يرجى تعبئة جميع الحقول ووضع رمز PIN من 4 أرقام");
       return;
     }
 
     setLoading(true);
     try {
-      // Check if phone already registered
       const q = query(collection(firestore, "drivers"), where("phone", "==", formData.phone));
       const snap = await getDocs(q);
       
       if (!snap.empty) {
-        toast({ variant: "destructive", title: "تنبيه", description: "هذا الرقم مسجل مسبقاً، يرجى تسجيل الدخول" });
-        setLoading(false);
-        return;
+        throw new Error("هذا الرقم مسجل مسبقاً، يرجى تسجيل الدخول");
       }
 
       const driversRef = collection(firestore, "drivers");
@@ -94,12 +95,7 @@ export default function DriverRegistration() {
       router.push('/driver');
     } catch (error: any) {
       console.error(error);
-      const permissionError = new FirestorePermissionError({
-        path: 'drivers',
-        operation: 'create',
-        requestResourceData: formData,
-      });
-      errorEmitter.emit('permission-error', permissionError);
+      setErrorMsg(error.message || "حدث خطأ غير متوقع");
     } finally {
       setLoading(false);
     }
@@ -176,6 +172,15 @@ export default function DriverRegistration() {
                 />
               </div>
             </div>
+
+            {errorMsg && (
+              <Alert variant="destructive" className="bg-red-50 border-red-200">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription className="text-xs font-bold mr-2">
+                  {errorMsg}
+                </AlertDescription>
+              </Alert>
+            )}
 
             <div className="bg-slate-50 p-3 rounded-lg border border-dashed text-xs text-muted-foreground flex items-center gap-2 justify-end">
               <span>{location.lat.toFixed(4)}, {location.lng.toFixed(4)}</span>
