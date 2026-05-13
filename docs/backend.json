@@ -21,7 +21,7 @@
     },
     "Customer": {
       "title": "Customer",
-      "description": "General user profile for requesting gas. Access is immediate upon registration.",
+      "description": "General user profile for requesting gas. Access is public and immediate for both creation and updates.",
       "type": "object",
       "properties": {
         "name": { "type": "string" },
@@ -34,7 +34,7 @@
     },
     "Request": {
       "title": "Delivery Request",
-      "description": "Customer request for gas delivery. Only accessible to authenticated and approved drivers.",
+      "description": "Customer request for gas delivery. Visible to all approved drivers.",
       "type": "object",
       "properties": {
         "customerName": { "type": "string" },
@@ -55,15 +55,15 @@
   "firestore": {
     "/drivers/{driverId}": {
       "schema": "Driver",
-      "description": "Only approved drivers can update their location coordinates."
+      "description": "Only approved drivers can broadcast locations."
     },
     "/customers/{customerId}": {
       "schema": "Customer",
-      "description": "Stores basic customer info for faster identification."
+      "description": "Open access for all users to register and manage their own profile."
     },
     "/requests/{requestId}": {
       "schema": "Request",
-      "description": "Active requests visible to all approved and available drivers."
+      "description": "Active requests for delivery."
     }
   }
 }

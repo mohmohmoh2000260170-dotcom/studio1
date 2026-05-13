@@ -11,19 +11,17 @@ import {
   Bell, 
   Loader2, 
   ArrowRight, 
-  ShoppingCart, 
   Phone, 
   MapPin, 
   Navigation,
   Truck,
-  AlertCircle,
   User,
   Plus,
   Minus
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore, useCollection, useMemoFirebase, errorEmitter, useDoc } from '@/firebase';
-import { collection, addDoc, serverTimestamp, query, where, doc, setDoc, updateDoc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, query, where, doc, setDoc } from 'firebase/firestore';
 import { FirestorePermissionError } from '@/firebase/errors';
 import Link from 'next/link';
 
@@ -64,7 +62,6 @@ export default function CustomerDashboard() {
   const [isRinging, setIsRinging] = useState(false);
   const [loadingRegistration, setLoadingRegistration] = useState(false);
   const [location, setLocation] = useState({ lat: 31.9454, lng: 35.9284 });
-  const [locPermission, setLocPermission] = useState<'granted' | 'denied' | 'pending'>('pending');
   const [customerId, setCustomerId] = useState<string | null>(null);
   
   const [formData, setFormData] = useState({
@@ -73,7 +70,7 @@ export default function CustomerDashboard() {
     cylinders: 1,
   });
 
-  // Persisted Session Check
+  // Force clear stuck states on initial mount
   useEffect(() => {
     const savedId = localStorage.getItem('customerId');
     const savedName = localStorage.getItem('customerName');
@@ -92,15 +89,14 @@ export default function CustomerDashboard() {
       navigator.geolocation.getCurrentPosition(
         (position) => {
           setLocation({ lat: position.coords.latitude, lng: position.coords.longitude });
-          setLocPermission('granted');
         },
-        () => setLocPermission('denied'),
+        () => console.log("Location access denied"),
         { enableHighAccuracy: true }
       );
     }
   }, []);
 
-  // Session Management - Watch for conflicts
+  // Session Management
   const customerDocRef = useMemo(() => {
     if (!firestore || !customerId) return null;
     return doc(firestore, "customers", customerId);
@@ -115,7 +111,7 @@ export default function CustomerDashboard() {
         toast({
           variant: "destructive",
           title: "تنبيه الجلسة",
-          description: "تم تسجيل الدخول من جهاز آخر. يرجى إعادة تسجيل الدخول هنا.",
+          description: "تم تسجيل الدخول من جهاز آخر.",
         });
         handleLogout();
       }
@@ -142,43 +138,46 @@ export default function CustomerDashboard() {
 
   const handleDetailsSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.customerName || !formData.phoneNumber) {
-      toast({ variant: "destructive", title: "خطأ", description: "يرجى تعبئة جميع الحقول" });
-      return;
-    }
-
-    if (!firestore) return;
-
+    if (loadingRegistration) return;
+    
     setLoadingRegistration(true);
+
     try {
       const uid = 'cust_' + Math.random().toString(36).substring(2, 11);
       const newSessionId = Math.random().toString(36).substring(2, 15);
-      const customerRef = doc(firestore, "customers", uid);
       
-      const customerData = {
-        name: formData.customerName,
-        phone: formData.phoneNumber,
-        uid: uid,
-        sessionId: newSessionId,
-        timestamp: serverTimestamp(),
-      };
-
-      // Direct write to collection - instant access
-      await setDoc(customerRef, customerData);
-      
+      // Save locally FIRST for instant feel
       localStorage.setItem('customerId', uid);
       localStorage.setItem('customerName', formData.customerName);
       localStorage.setItem('customerPhone', formData.phoneNumber);
       localStorage.setItem('sessionId', newSessionId);
+
+      if (firestore) {
+        const customerRef = doc(firestore, "customers", uid);
+        const customerData = {
+          name: formData.customerName,
+          phone: formData.phoneNumber,
+          uid: uid,
+          sessionId: newSessionId,
+          timestamp: serverTimestamp(),
+        };
+
+        // Fire and forget (or rather, don't block the UI navigation)
+        setDoc(customerRef, customerData).catch(err => {
+          console.error("Firestore Write Error:", err);
+        });
+      }
       
+      // Force navigation/step change immediately
       setCustomerId(uid);
       setStep('discovery');
-      toast({ title: "أهلاً بك", description: "تم تسجيل دخولك بنجاح." });
-    } catch (err) {
-      console.error(err);
-      toast({ variant: "destructive", title: "خطأ", description: "حدث خطأ أثناء محاولة الدخول. يرجى المحاولة لاحقاً." });
-    } finally {
       setLoadingRegistration(false);
+      
+      toast({ title: "أهلاً بك", description: "تم الدخول بنجاح." });
+    } catch (err) {
+      setLoadingRegistration(false);
+      console.error("Submit Error:", err);
+      toast({ variant: "destructive", title: "خطأ", description: "حدث خطأ غير متوقع." });
     }
   };
 
@@ -200,7 +199,7 @@ export default function CustomerDashboard() {
 
     addDoc(requestsRef, requestData)
       .then(() => {
-        toast({ title: "تم رن الجرس! 🔔", description: `تم إرسال طلبك لـ ${formData.cylinders} أسطوانات.` });
+        toast({ title: "تم رن الجرس! 🔔", description: `طلبك لـ ${formData.cylinders} أسطوانات قيد المتابعة.` });
       })
       .catch(async (err) => {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
@@ -213,10 +212,7 @@ export default function CustomerDashboard() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('customerId');
-    localStorage.removeItem('customerName');
-    localStorage.removeItem('customerPhone');
-    localStorage.removeItem('sessionId');
+    localStorage.clear();
     setStep('details');
     setCustomerId(null);
   };
@@ -254,7 +250,7 @@ export default function CustomerDashboard() {
                 />
               </div>
               <Button type="submit" disabled={loadingRegistration} className="w-full h-12 text-lg font-bold">
-                {loadingRegistration ? <Loader2 className="animate-spin ml-2" /> : "دخول مباشر"}
+                {loadingRegistration ? <Loader2 className="animate-spin" /> : "دخول مباشر"}
               </Button>
               <Link href="/" className="block">
                 <Button variant="ghost" className="w-full">رجوع للرئيسية</Button>
@@ -285,13 +281,13 @@ export default function CustomerDashboard() {
         <div className="w-full md:w-96 bg-white border-l overflow-y-auto p-4 space-y-4 shadow-xl z-10">
           <div className="p-2">
             <h2 className="text-sm font-bold text-muted-foreground mb-4">
-              {loadingDrivers ? "جاري البحث عن موزعين..." : `تم العثور على ${nearestAgencies.length} موزع متاح في منطقتك`}
+              {loadingDrivers ? "جاري البحث..." : `تم العثور على ${nearestAgencies.length} موزع`}
             </h2>
             <div className="space-y-3">
               {nearestAgencies.length === 0 && !loadingDrivers && (
                 <div className="p-8 text-center bg-slate-50 rounded-2xl border-2 border-dashed">
                   <Truck className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-                  <p className="text-xs text-muted-foreground">لا يوجد موزعين متاحين حالياً في منطقتك</p>
+                  <p className="text-xs text-muted-foreground">لا يوجد موزعين متاحين حالياً</p>
                 </div>
               )}
               {nearestAgencies.map((agency) => (
@@ -307,7 +303,7 @@ export default function CustomerDashboard() {
                         </p>
                       </div>
                     </div>
-                    <Badge className="bg-green-100 text-green-700 hover:bg-green-100">متاح</Badge>
+                    <Badge className="bg-green-100 text-green-700">متاح</Badge>
                   </CardContent>
                 </Card>
               ))}
@@ -359,7 +355,7 @@ export default function CustomerDashboard() {
                   className="w-full h-16 text-xl rounded-2xl shadow-xl bg-primary hover:bg-primary/90 transition-all transform active:scale-95"
                 >
                   {isRinging ? <Loader2 className="animate-spin" /> : <Bell className="w-6 h-6 ml-2" />}
-                  رن الجرس للجميع 🔔
+                  رن الجرس 🔔
                 </Button>
               </div>
             </Card>
