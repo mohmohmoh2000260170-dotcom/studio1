@@ -20,12 +20,12 @@ import {
   Plus,
   Minus,
   Lock,
-  ShieldAlert,
   CheckCircle2,
-  RefreshCw,
   UserPlus,
   LogIn,
-  AlertCircle
+  AlertCircle,
+  HelpCircle,
+  MessageSquare
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore, useCollection, useMemoFirebase, errorEmitter, useDoc } from '@/firebase';
@@ -35,6 +35,16 @@ import { getDeviceId } from '@/lib/device';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+import { ADMIN_CONFIG } from '@/lib/constants';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter
+} from "@/components/ui/dialog";
 
 interface Driver {
   id: string;
@@ -82,6 +92,13 @@ export default function CustomerDashboard() {
   const [customerId, setCustomerId] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   
+  // Forgot PIN state
+  const [resetData, setResetData] = useState({ phone: '', name: '', newPin: '' });
+  const [resetStep, setResetStep] = useState<'verify' | 'new-pin'>('verify');
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetError, setResetError] = useState<string | null>(null);
+  const [showResetDialog, setShowResetDialog] = useState(false);
+
   const [formData, setFormData] = useState({
     customerName: '',
     phoneNumber: '',
@@ -166,7 +183,7 @@ export default function CustomerDashboard() {
     const forceNav = setTimeout(() => {
       if (customerId) setStep('discovery');
       setLoading(false);
-    }, 3000);
+    }, 5000);
 
     try {
       const currentDeviceId = getDeviceId();
@@ -192,7 +209,7 @@ export default function CustomerDashboard() {
         }
 
         const targetId = docSnap.id;
-        updateDoc(doc(firestore, "customers", targetId), { 
+        await updateDoc(doc(firestore, "customers", targetId), { 
           sessionId: newSessionId, 
           lastSeen: serverTimestamp() 
         });
@@ -202,7 +219,6 @@ export default function CustomerDashboard() {
         localStorage.setItem('isRegistered', 'true');
         setCustomerId(targetId);
       } else {
-        // REGISTRATION
         if (!snap.empty) {
           throw new Error("هذا الرقم مسجل مسبقاً، يرجى تسجيل الدخول أو استخدام رقم آخر");
         }
@@ -236,6 +252,49 @@ export default function CustomerDashboard() {
       clearTimeout(forceNav);
       setLoading(false);
       setErrorMsg(err.message);
+    }
+  };
+
+  const handleResetPin = async () => {
+    if (resetStep === 'verify') {
+      setResetLoading(true);
+      setResetError(null);
+      try {
+        const q = query(collection(firestore, "customers"), 
+          where("phone", "==", resetData.phone),
+          where("name", "==", resetData.name)
+        );
+        const snap = await getDocs(q);
+        if (snap.empty) {
+          throw new Error("لم يتم العثور على حساب مطابق لهذه البيانات. تأكد من إدخال الاسم المسجل تماماً.");
+        }
+        setResetStep('new-pin');
+      } catch (err: any) {
+        setResetError(err.message);
+      } finally {
+        setResetLoading(false);
+      }
+    } else {
+      if (resetData.newPin.length !== 4) {
+        setResetError("الرمز الجديد يجب أن يكون 4 أرقام");
+        return;
+      }
+      setResetLoading(true);
+      try {
+        const q = query(collection(firestore, "customers"), where("phone", "==", resetData.phone));
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          await updateDoc(doc(firestore, "customers", snap.docs[0].id), { pin: resetData.newPin });
+          toast({ title: "تم تغيير الرمز بنجاح", description: "يمكنك الآن تسجيل الدخول بالرمز الجديد." });
+          setShowResetDialog(false);
+          setResetStep('verify');
+          setResetData({ phone: '', name: '', newPin: '' });
+        }
+      } catch (err: any) {
+        setResetError("حدث خطأ أثناء التحديث");
+      } finally {
+        setResetLoading(false);
+      }
     }
   };
 
@@ -316,7 +375,75 @@ export default function CustomerDashboard() {
               </div>
               
               <div className="space-y-2">
-                <Label className="block text-right">رمز PIN (4 أرقام)</Label>
+                <div className="flex items-center justify-between mb-1">
+                  <Dialog open={showResetDialog} onOpenChange={setShowResetDialog}>
+                    <DialogTrigger asChild>
+                      <Button variant="link" className="p-0 h-auto text-xs text-primary font-bold">نسيت رمز PIN؟</Button>
+                    </DialogTrigger>
+                    <DialogContent dir="rtl" className="text-right">
+                      <DialogHeader>
+                        <DialogTitle className="text-right">استعادة رمز الدخول</DialogTitle>
+                        <DialogDescription className="text-right">
+                          {resetStep === 'verify' 
+                            ? "أدخل هاتفك واسمك المسجل لتأكيد هويتك." 
+                            : "تم التحقق بنجاح! أدخل رمز PIN الجديد المكون من 4 أرقام."}
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4 py-4">
+                        {resetStep === 'verify' ? (
+                          <>
+                            <div className="space-y-2">
+                              <Label>رقم الهاتف</Label>
+                              <Input 
+                                placeholder="07XXXXXXXX" 
+                                value={resetData.phone}
+                                onChange={(e) => setResetData({...resetData, phone: e.target.value})}
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>الاسم المسجل كاملاً</Label>
+                              <Input 
+                                placeholder="أدخل اسمك كما سجلته أول مرة"
+                                value={resetData.name}
+                                onChange={(e) => setResetData({...resetData, name: e.target.value})}
+                              />
+                            </div>
+                          </>
+                        ) : (
+                          <div className="space-y-2">
+                            <Label>رمز PIN الجديد (4 أرقام)</Label>
+                            <Input 
+                              type="password"
+                              maxLength={4}
+                              placeholder="****"
+                              value={resetData.newPin}
+                              onChange={(e) => setResetData({...resetData, newPin: e.target.value.replace(/\D/g, '')})}
+                            />
+                          </div>
+                        )}
+                        {resetError && (
+                          <Alert variant="destructive" className="bg-red-50 border-red-200 p-2">
+                            <AlertCircle className="h-4 w-4" />
+                            <AlertDescription className="text-[10px] mr-2">{resetError}</AlertDescription>
+                          </Alert>
+                        )}
+                      </div>
+                      <DialogFooter className="flex flex-col gap-2">
+                        <Button onClick={handleResetPin} disabled={resetLoading} className="w-full font-bold">
+                          {resetLoading ? <Loader2 className="animate-spin" /> : (resetStep === 'verify' ? "تحقق" : "حفظ الرمز الجديد")}
+                        </Button>
+                        <div className="relative my-2">
+                          <div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div>
+                          <div className="relative flex justify-center text-[10px] uppercase"><span className="bg-white px-2 text-muted-foreground font-bold">أو تواصل معنا</span></div>
+                        </div>
+                        <Button variant="outline" className="w-full text-green-600 border-green-200 hover:bg-green-50 font-bold gap-2" onClick={() => window.open(`https://wa.me/962${ADMIN_CONFIG.phone.substring(1)}?text=أريد استعادة رمز PIN لحسابي: ${resetData.phone}`)}>
+                          <MessageSquare className="w-4 h-4" /> تواصل مع الإدارة عبر واتساب
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                  <Label className="block text-right">رمز PIN (4 أرقام)</Label>
+                </div>
                 <Input 
                   type="password" 
                   maxLength={4}

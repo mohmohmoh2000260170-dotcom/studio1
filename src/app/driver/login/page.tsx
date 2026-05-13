@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Phone, LogIn, Loader2, UserPlus, AlertCircle, Clock, XCircle, Lock } from 'lucide-react';
+import { Phone, LogIn, Loader2, UserPlus, AlertCircle, Clock, XCircle, Lock, MessageSquare } from 'lucide-react';
 import { useFirestore } from '@/firebase';
 import { collection, query, where, getDocs, updateDoc, doc } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
@@ -14,6 +14,16 @@ import { useToast } from '@/hooks/use-toast';
 import { getDeviceId } from '@/lib/device';
 import Link from 'next/link';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+import { ADMIN_CONFIG } from '@/lib/constants';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter
+} from "@/components/ui/dialog";
 
 export default function DriverLogin() {
   const router = useRouter();
@@ -23,6 +33,13 @@ export default function DriverLogin() {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({ phone: '', pin: '' });
   const [statusMessage, setStatusMessage] = useState<{ type: 'pending' | 'rejected' | 'error', text: string } | null>(null);
+
+  // Reset PIN State
+  const [resetData, setResetData] = useState({ phone: '', name: '', newPin: '' });
+  const [resetStep, setResetStep] = useState<'verify' | 'new-pin'>('verify');
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetError, setResetError] = useState<string | null>(null);
+  const [showResetDialog, setShowResetDialog] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,14 +65,12 @@ export default function DriverLogin() {
       const data = driverDoc.data();
       const currentDeviceId = getDeviceId();
 
-      // Security Check: PIN
       if (data.pin !== formData.pin) {
         toast({ variant: "destructive", title: "خطأ في الدخول", description: "رمز PIN غير صحيح" });
         setLoading(false);
         return;
       }
 
-      // Security Check: Device Binding
       if (data.deviceId && data.deviceId !== currentDeviceId) {
         setStatusMessage({ type: 'error', text: 'تنبيه أمني: هذا الحساب مرتبط بجهاز آخر. لا يمكن الدخول من هذا الجهاز.' });
         setLoading(false);
@@ -81,6 +96,49 @@ export default function DriverLogin() {
       toast({ variant: "destructive", title: "خطأ", description: "حدث خطأ أثناء محاولة تسجيل الدخول" });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResetPin = async () => {
+    if (resetStep === 'verify') {
+      setResetLoading(true);
+      setResetError(null);
+      try {
+        const q = query(collection(firestore, "drivers"), 
+          where("phone", "==", resetData.phone),
+          where("name", "==", resetData.name)
+        );
+        const snap = await getDocs(q);
+        if (snap.empty) {
+          throw new Error("لم يتم العثور على وكالة مطابقة لهذه البيانات. تأكد من إدخال اسم الوكالة كما سجلته.");
+        }
+        setResetStep('new-pin');
+      } catch (err: any) {
+        setResetError(err.message);
+      } finally {
+        setResetLoading(false);
+      }
+    } else {
+      if (resetData.newPin.length !== 4) {
+        setResetError("الرمز الجديد يجب أن يكون 4 أرقام");
+        return;
+      }
+      setResetLoading(true);
+      try {
+        const q = query(collection(firestore, "drivers"), where("phone", "==", resetData.phone));
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          await updateDoc(doc(firestore, "drivers", snap.docs[0].id), { pin: resetData.newPin });
+          toast({ title: "تم تحديث الرمز", description: "يمكنك الآن الدخول باستخدام الرمز الجديد." });
+          setShowResetDialog(false);
+          setResetStep('verify');
+          setResetData({ phone: '', name: '', newPin: '' });
+        }
+      } catch (err: any) {
+        setResetError("حدث خطأ أثناء تحديث البيانات");
+      } finally {
+        setResetLoading(false);
+      }
     }
   };
 
@@ -113,7 +171,73 @@ export default function DriverLogin() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="pin" className="block text-right">رمز PIN (4 أرقام)</Label>
+              <div className="flex items-center justify-between mb-1">
+                <Dialog open={showResetDialog} onOpenChange={setShowResetDialog}>
+                  <DialogTrigger asChild>
+                    <Button variant="link" className="p-0 h-auto text-xs text-primary font-bold">نسيت رمز PIN؟</Button>
+                  </DialogTrigger>
+                  <DialogContent dir="rtl" className="text-right">
+                    <DialogHeader>
+                      <DialogTitle className="text-right">استعادة حساب الوكالة</DialogTitle>
+                      <DialogDescription className="text-right">
+                        تأكد من إدخال رقم الهاتف واسم الوكالة كما تم تسجيلهما في النظام.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                      {resetStep === 'verify' ? (
+                        <>
+                          <div className="space-y-2">
+                            <Label>رقم هاتف الوكالة</Label>
+                            <Input 
+                              placeholder="07XXXXXXXX" 
+                              value={resetData.phone}
+                              onChange={(e) => setResetData({...resetData, phone: e.target.value})}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>اسم الوكالة / السائق</Label>
+                            <Input 
+                              placeholder="أدخل اسم الوكالة المسجل"
+                              value={resetData.name}
+                              onChange={(e) => setResetData({...resetData, name: e.target.value})}
+                            />
+                          </div>
+                        </>
+                      ) : (
+                        <div className="space-y-2">
+                          <Label>رمز PIN الجديد (4 أرقام)</Label>
+                          <Input 
+                            type="password"
+                            maxLength={4}
+                            placeholder="****"
+                            value={resetData.newPin}
+                            onChange={(e) => setResetData({...resetData, newPin: e.target.value.replace(/\D/g, '')})}
+                          />
+                        </div>
+                      )}
+                      {resetError && (
+                        <Alert variant="destructive" className="bg-red-50 border-red-200 p-2">
+                          <AlertCircle className="h-4 w-4" />
+                          <AlertDescription className="text-xs font-bold mr-2">{resetError}</AlertDescription>
+                        </Alert>
+                      )}
+                    </div>
+                    <DialogFooter className="flex flex-col gap-2">
+                      <Button onClick={handleResetPin} disabled={resetLoading} className="w-full font-bold">
+                        {resetLoading ? <Loader2 className="animate-spin" /> : (resetStep === 'verify' ? "تحقق من البيانات" : "تحديث الرمز")}
+                      </Button>
+                      <div className="relative my-2">
+                        <div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div>
+                        <div className="relative flex justify-center text-[10px] uppercase"><span className="bg-white px-2 text-muted-foreground font-bold">تحتاج مساعدة؟</span></div>
+                      </div>
+                      <Button variant="outline" className="w-full text-green-600 border-green-200 hover:bg-green-50 font-bold gap-2" onClick={() => window.open(`https://wa.me/962${ADMIN_CONFIG.phone.substring(1)}?text=أريد تصفير رمز PIN لوكالة الغاز: ${resetData.phone}`)}>
+                        <MessageSquare className="w-4 h-4" /> تواصل مع الإدارة (واتساب)
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+                <Label htmlFor="pin" className="block text-right">رمز PIN (4 أرقام)</Label>
+              </div>
               <div className="relative">
                 <Lock className="absolute right-3 top-3 w-4 h-4 text-muted-foreground" />
                 <Input 
