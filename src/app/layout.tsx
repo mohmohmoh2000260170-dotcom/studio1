@@ -7,7 +7,6 @@ import { Toaster } from '@/components/ui/toaster';
 export const metadata: Metadata = {
   title: 'غاز دليفري | أسرع توصيل أسطوانات غاز',
   description: 'تطبيق توصيل أسطوانات الغاز الأول في الأردن. اطلب الآن بضغطة زر واحدة.',
-  manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',

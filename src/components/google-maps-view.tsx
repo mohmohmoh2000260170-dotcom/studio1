@@ -23,7 +23,10 @@ interface MarkerProps {
 
 export function GoogleMapsView({ markers }: { markers: MarkerProps[] }) {
   const [L, setL] = useState<any>(null);
-  const center = markers.find(m => m.id === 'me') || { lat: 31.9454, lng: 35.9284 };
+  
+  // Try to center on the customer ('me') or the first marker, else default to Amman
+  const centerMarker = markers.find(m => m.id === 'me') || markers[0];
+  const centerPosition: [number, number] = centerMarker ? [centerMarker.lat, centerMarker.lng] : [31.9454, 35.9284];
 
   useEffect(() => {
     import('leaflet').then((leaflet) => {
@@ -56,7 +59,7 @@ export function GoogleMapsView({ markers }: { markers: MarkerProps[] }) {
   return (
     <div className="relative w-full h-full overflow-hidden rounded-xl border shadow-inner">
       <MapContainer 
-        center={[center.lat, center.lng]} 
+        center={centerPosition} 
         zoom={14} 
         scrollWheelZoom={true} 
         style={{ height: '100%', width: '100%' }}
