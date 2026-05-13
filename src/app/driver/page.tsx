@@ -16,7 +16,8 @@ import {
   LogOut, 
   Activity,
   Loader2,
-  AlertTriangle
+  AlertTriangle,
+  Navigation
 } from 'lucide-react';
 import { useFirestore, useCollection, useMemoFirebase, errorEmitter } from '@/firebase';
 import { collection, query, where, orderBy, getDocs, doc, updateDoc } from 'firebase/firestore';
@@ -88,7 +89,6 @@ export default function DriverDashboard() {
     fetchDriver();
   }, [firestore, driverId, router]);
 
-  // Background Location Update Logic (Every 30 seconds)
   useEffect(() => {
     if (!firestore || !driverInfo || driverInfo.status !== 'approved' || driverInfo.availability !== 'available') {
       return;
@@ -125,7 +125,7 @@ export default function DriverDashboard() {
       );
     };
 
-    const interval = setInterval(updateLocation, 30000); // 30 seconds
+    const interval = setInterval(updateLocation, 30000); 
     updateLocation();
     return () => clearInterval(interval);
   }, [firestore, driverInfo]);
@@ -275,17 +275,17 @@ export default function DriverDashboard() {
                     </div>
                     <CardContent className="p-5 space-y-5">
                       <div className="grid grid-cols-2 gap-4">
-                        <div className="bg-slate-50 p-3 rounded-xl border flex items-center gap-3">
-                          <ShoppingCart className="w-5 h-5 text-primary" />
+                        <div className="bg-primary/10 p-3 rounded-xl border border-primary/20 flex items-center gap-3">
+                          <ShoppingCart className="w-6 h-6 text-primary" />
                           <div className="text-right">
-                            <p className="text-[10px] text-muted-foreground">الكمية</p>
-                            <p className="font-bold">{req.cylinders} اسطوانات</p>
+                            <p className="text-[10px] text-muted-foreground">الكمية المطلوبة</p>
+                            <p className="text-lg font-black text-primary">{req.cylinders} أسطوانات</p>
                           </div>
                         </div>
                         <div className="bg-slate-50 p-3 rounded-xl border flex items-center gap-3">
-                          <Phone className="w-5 h-5 text-primary" />
+                          <Phone className="w-5 h-5 text-slate-600" />
                           <div className="text-right">
-                            <p className="text-[10px] text-muted-foreground">الهاتف</p>
+                            <p className="text-[10px] text-muted-foreground">رقم الهاتف</p>
                             <p className="font-bold">{req.phoneNumber}</p>
                           </div>
                         </div>
@@ -298,12 +298,12 @@ export default function DriverDashboard() {
                           onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${req.lat},${req.lng}`, '_blank')}
                         >
                           <MapPin className="w-4 h-4" />
-                          فتح الخريطة
+                          موقع العميل
                         </Button>
                         <Link href={`tel:${req.phoneNumber}`} className="flex-1">
-                          <Button className="w-full h-12 gap-2 font-bold bg-primary">
+                          <Button className="w-full h-12 gap-2 font-bold bg-primary hover:bg-primary/90">
                             <Phone className="w-4 h-4" />
-                            اتصال سريع
+                            اتصال الآن
                           </Button>
                         </Link>
                       </div>

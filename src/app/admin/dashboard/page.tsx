@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useEffect } from 'react';
@@ -226,7 +227,7 @@ export default function AdminDashboard() {
             ) : (
               <div className="grid gap-4">
                 {requests.map((req) => (
-                  <Card key={req.id} className="border-2 hover:border-primary/20 transition-all shadow-sm text-right">
+                  <Card key={req.id} className="border-2 hover:border-primary/20 transition-all shadow-sm text-right overflow-hidden">
                     <CardContent className="p-6 space-y-4">
                       <div className="flex items-center justify-between flex-row-reverse">
                         <div className="flex items-center gap-3 flex-row-reverse">
@@ -242,13 +243,14 @@ export default function AdminDashboard() {
                       </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="flex items-center gap-2 text-sm justify-end">
-                          {req.cylinders} <span className="font-medium">:عدد الأسطوانات</span>
+                        <div className="bg-primary/5 p-3 rounded-xl flex items-center gap-2 text-sm justify-end border border-primary/10">
+                          <span className="text-lg font-black text-primary">{req.cylinders}</span>
+                          <span className="font-medium">:عدد الأسطوانات</span>
                           <ShoppingCart className="w-4 h-4 text-primary" />
                         </div>
                         <div className="flex items-center gap-2 text-sm justify-end">
                           {req.phoneNumber} <span className="font-medium">:رقم الهاتف</span>
-                          <Phone className="w-4 h-4 text-primary" />
+                          <Phone className="w-4 h-4 text-slate-400" />
                         </div>
                         <div className="flex items-center gap-2 text-sm text-blue-600 justify-end">
                           GPS: {req.lat.toFixed(4)}, {req.lng.toFixed(4)}

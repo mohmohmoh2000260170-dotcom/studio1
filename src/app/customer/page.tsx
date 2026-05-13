@@ -19,7 +19,9 @@ import {
   Navigation,
   Truck,
   AlertCircle,
-  User
+  User,
+  Plus,
+  Minus
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore, useCollection, useMemoFirebase, errorEmitter } from '@/firebase';
@@ -36,6 +38,8 @@ interface Driver {
   lng: number;
   lastSeen?: string;
 }
+
+const PRICE_PER_CYLINDER = 7; // Estimated price in JOD
 
 function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
   if (!lat1 || !lon1 || !lat2 || !lon2) return 999;
@@ -67,10 +71,9 @@ export default function CustomerDashboard() {
   const [formData, setFormData] = useState({
     customerName: '',
     phoneNumber: '',
-    cylinders: '1',
+    cylinders: 1,
   });
 
-  // Check for existing customer session
   useEffect(() => {
     const savedId = localStorage.getItem('customerId');
     const savedName = localStorage.getItem('customerName');
@@ -82,7 +85,6 @@ export default function CustomerDashboard() {
     }
   }, []);
 
-  // Get user location immediately
   useEffect(() => {
     if (typeof window !== 'undefined' && navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
@@ -122,7 +124,7 @@ export default function CustomerDashboard() {
 
   const handleDetailsSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.customerName || !formData.phoneNumber || !formData.cylinders) {
+    if (!formData.customerName || !formData.phoneNumber) {
       toast({ variant: "destructive", title: "خطأ", description: "يرجى تعبئة جميع الحقول" });
       return;
     }
@@ -160,6 +162,9 @@ export default function CustomerDashboard() {
     }
   };
 
+  const incrementCylinders = () => setFormData(prev => ({ ...prev, cylinders: prev.cylinders + 1 }));
+  const decrementCylinders = () => setFormData(prev => ({ ...prev, cylinders: Math.max(1, prev.cylinders - 1) }));
+
   const handleRingBell = () => {
     if (!firestore) return;
     setIsRinging(true);
@@ -169,7 +174,7 @@ export default function CustomerDashboard() {
     const requestData = {
       customerName: formData.customerName,
       phoneNumber: formData.phoneNumber,
-      cylinders: formData.cylinders,
+      cylinders: formData.cylinders.toString(),
       uid: customerId,
       lat: location.lat,
       lng: location.lng,
@@ -181,7 +186,7 @@ export default function CustomerDashboard() {
       .then(() => {
         toast({
           title: "تم رن الجرس! 🔔",
-          description: "تم إرسال موقعك وطلبك لجميع الموزعين المتاحين.",
+          description: `تم إرسال طلب لـ ${formData.cylinders} أسطوانات لجميع الموزعين.`,
         });
       })
       .catch(async (err) => {
@@ -239,21 +244,6 @@ export default function CustomerDashboard() {
                     className="pr-10 text-right"
                     value={formData.phoneNumber}
                     onChange={(e) => setFormData({...formData, phoneNumber: e.target.value})}
-                    required
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="cylinders" className="block text-right">عدد الاسطوانات</Label>
-                <div className="relative">
-                  <ShoppingCart className="absolute right-3 top-3 w-4 h-4 text-muted-foreground" />
-                  <Input 
-                    id="cylinders" 
-                    type="number" 
-                    min="1"
-                    className="pr-10 text-right"
-                    value={formData.cylinders}
-                    onChange={(e) => setFormData({...formData, cylinders: e.target.value})}
                     required
                   />
                 </div>
@@ -352,22 +342,58 @@ export default function CustomerDashboard() {
             }))
           ]} />
 
-          <div className="absolute bottom-10 left-0 right-0 px-6 flex justify-center">
-            <Card className="w-full max-w-sm shadow-2xl border-primary/20 bg-white/95 backdrop-blur-sm rounded-3xl overflow-hidden">
-              <CardContent className="p-5 space-y-4">
-                <div className="flex justify-between items-center text-xs px-2 font-bold">
-                  <span className="bg-primary/10 text-primary px-3 py-1 rounded-full">{formData.cylinders} اسطوانات</span>
-                  <span className="text-slate-800">{formData.customerName}</span>
+          <div className="absolute bottom-6 left-0 right-0 px-6 flex justify-center">
+            <Card className="w-full max-w-sm shadow-2xl border-primary/20 bg-white/95 backdrop-blur-sm rounded-[2rem] overflow-hidden">
+              <CardContent className="p-6 space-y-6">
+                <div className="space-y-4">
+                  <h3 className="text-center font-bold text-slate-800">كم أسطوانة غاز تحتاج؟</h3>
+                  
+                  <div className="flex items-center justify-center gap-6">
+                    <Button 
+                      variant="outline" 
+                      size="icon" 
+                      onClick={decrementCylinders}
+                      className="w-12 h-12 rounded-full border-2 border-primary/20 text-primary hover:bg-primary/10"
+                    >
+                      <Minus className="w-6 h-6" />
+                    </Button>
+                    
+                    <div className="flex flex-col items-center min-w-[60px]">
+                      <span className="text-4xl font-black text-primary">{formData.cylinders}</span>
+                      <span className="text-[10px] text-muted-foreground font-bold">أسطوانة</span>
+                    </div>
+                    
+                    <Button 
+                      variant="outline" 
+                      size="icon" 
+                      onClick={incrementCylinders}
+                      className="w-12 h-12 rounded-full border-2 border-primary/20 text-primary hover:bg-primary/10"
+                    >
+                      <Plus className="w-6 h-6" />
+                    </Button>
+                  </div>
                 </div>
+
+                <div className="bg-slate-50 p-4 rounded-2xl border flex flex-col items-center gap-1">
+                  <div className="flex items-center gap-2 text-xs font-bold text-slate-500">
+                    <ShoppingCart className="w-3 h-3" />
+                    السعر التقديري للطلب
+                  </div>
+                  <div className="text-2xl font-black text-slate-900">
+                    {formData.cylinders * PRICE_PER_CYLINDER} JOD
+                  </div>
+                  <p className="text-[9px] text-muted-foreground">شامل التوصيل للموقع الحالي</p>
+                </div>
+
                 <Button 
                   onClick={handleRingBell} 
                   disabled={isRinging}
-                  className="w-full h-16 text-xl gap-3 rounded-2xl shadow-lg shadow-primary/30 transition-transform active:scale-95 bg-primary hover:bg-primary/90"
+                  className="w-full h-16 text-xl gap-3 rounded-2xl shadow-xl shadow-primary/30 transition-transform active:scale-95 bg-primary hover:bg-primary/90"
                 >
                   {isRinging ? <Loader2 className="animate-spin" /> : <Bell className="w-6 h-6" />}
                   رن الجرس للجميع 🔔
                 </Button>
-                <p className="text-[10px] text-center text-muted-foreground font-medium">سيتم إرسال موقعك للموزعين المتاحين حولك</p>
+                <p className="text-[10px] text-center text-muted-foreground font-medium">سيتم إرسال طلبك لـ {nearestAgencies.length} موزع قريب منك</p>
               </CardContent>
             </Card>
           </div>
