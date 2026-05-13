@@ -51,9 +51,13 @@ export default function CustomerDashboard() {
 
   const initRecaptcha = () => {
     if (!recaptchaVerifier.current && auth && recaptchaContainerRef.current) {
-      recaptchaVerifier.current = new RecaptchaVerifier(auth, recaptchaContainerRef.current, {
-        size: 'invisible',
-      });
+      try {
+        recaptchaVerifier.current = new RecaptchaVerifier(auth, recaptchaContainerRef.current, {
+          size: 'invisible',
+        });
+      } catch (e) {
+        console.error("Recaptcha init failed", e);
+      }
     }
   };
 
@@ -64,7 +68,6 @@ export default function CustomerDashboard() {
       return;
     }
 
-    // Basic format check (needs to be international for Firebase)
     let formattedPhone = formData.phoneNumber;
     if (formattedPhone.startsWith('0')) {
       formattedPhone = '+962' + formattedPhone.substring(1);
@@ -81,7 +84,13 @@ export default function CustomerDashboard() {
       toast({ title: "تم إرسال الرمز", description: "يرجى إدخال رمز التحقق المرسل لهاتفك" });
     } catch (error: any) {
       console.error(error);
-      toast({ variant: "destructive", title: "خطأ في الإرسال", description: error.message });
+      toast({ 
+        variant: "destructive", 
+        title: "خطأ في الإرسال", 
+        description: error.code === 'auth/invalid-api-key' 
+          ? "مفتاح API غير صالح. يرجى تحديث الإعدادات." 
+          : error.message 
+      });
     } finally {
       setIsLoading(false);
     }
@@ -141,7 +150,7 @@ export default function CustomerDashboard() {
 
   if (step === 'details') {
     return (
-      <div className="min-h-screen bg-[#FBF3EE] flex flex-col items-center justify-center p-6">
+      <div className="min-h-screen bg-[#FBF3EE] flex flex-col items-center justify-center p-6 text-right" dir="rtl">
         <div ref={recaptchaContainerRef}></div>
         <Card className="w-full max-w-md shadow-xl border-primary/20 bg-white">
           <CardHeader className="text-center space-y-2">
@@ -154,24 +163,25 @@ export default function CustomerDashboard() {
           <CardContent>
             <form onSubmit={handleDetailsSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="name">الاسم بالكامل</Label>
+                <Label htmlFor="name" className="block text-right">الاسم بالكامل</Label>
                 <Input 
                   id="name" 
                   placeholder="مثال: خالد أحمد" 
+                  className="text-right"
                   value={formData.customerName}
                   onChange={(e) => setFormData({...formData, customerName: e.target.value})}
                   required
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="phone">رقم الهاتف</Label>
+                <Label htmlFor="phone" className="block text-right">رقم الهاتف</Label>
                 <div className="relative">
                   <Phone className="absolute right-3 top-3 w-4 h-4 text-muted-foreground" />
                   <Input 
                     id="phone" 
                     type="tel"
                     placeholder="07XXXXXXXX" 
-                    className="pr-10"
+                    className="pr-10 text-right"
                     value={formData.phoneNumber}
                     onChange={(e) => setFormData({...formData, phoneNumber: e.target.value})}
                     required
@@ -179,14 +189,14 @@ export default function CustomerDashboard() {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="cylinders">عدد الاسطوانات</Label>
+                <Label htmlFor="cylinders" className="block text-right">عدد الاسطوانات</Label>
                 <div className="relative">
                   <ShoppingCart className="absolute right-3 top-3 w-4 h-4 text-muted-foreground" />
                   <Input 
                     id="cylinders" 
                     type="number" 
                     min="1"
-                    className="pr-10"
+                    className="pr-10 text-right"
                     value={formData.cylinders}
                     onChange={(e) => setFormData({...formData, cylinders: e.target.value})}
                     required
@@ -209,7 +219,7 @@ export default function CustomerDashboard() {
 
   if (step === 'otp') {
     return (
-      <div className="min-h-screen bg-[#FBF3EE] flex flex-col items-center justify-center p-6">
+      <div className="min-h-screen bg-[#FBF3EE] flex flex-col items-center justify-center p-6 text-right" dir="rtl">
         <Card className="w-full max-w-md shadow-xl border-primary/20 bg-white">
           <CardHeader className="text-center space-y-2">
             <div className="mx-auto bg-primary/10 p-4 rounded-2xl w-fit mb-2">
@@ -221,7 +231,7 @@ export default function CustomerDashboard() {
           <CardContent>
             <form onSubmit={handleOtpSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="otp">رمز التحقق</Label>
+                <Label htmlFor="otp" className="block text-right">رمز التحقق</Label>
                 <Input 
                   id="otp" 
                   type="text"
@@ -246,7 +256,7 @@ export default function CustomerDashboard() {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-background">
+    <div className="flex flex-col h-screen bg-background" dir="rtl">
       <header className="bg-white border-b px-6 py-4 flex items-center justify-between shadow-sm z-20">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" onClick={() => setStep('details')} className="rounded-full">
