@@ -18,13 +18,15 @@ import {
   Clock,
   Truck,
   Bell,
-  Users
+  Users,
+  Search
 } from 'lucide-react';
 import { useFirestore, useCollection, useMemoFirebase, errorEmitter } from '@/firebase';
 import { collection, query, where, doc, updateDoc, orderBy } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { FirestorePermissionError } from '@/firebase/errors';
+import { Input } from '@/components/ui/input';
 
 interface PendingDriver {
   id: string;
@@ -135,44 +137,86 @@ export default function AdminDashboard() {
         </Button>
       </header>
 
-      <main className="flex-1 p-6 max-w-5xl mx-auto w-full">
+      <main className="flex-1 p-6 max-w-6xl mx-auto w-full">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <Card className="bg-primary text-white overflow-hidden relative">
+            <CardContent className="p-6">
+              <div className="flex justify-between items-center">
+                <div>
+                  <p className="text-sm opacity-80 mb-1">الشركات المعلقة</p>
+                  <h3 className="text-3xl font-black">{(drivers || []).length}</h3>
+                </div>
+                <Truck className="w-10 h-10 opacity-20" />
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="bg-slate-800 text-white overflow-hidden relative">
+            <CardContent className="p-6">
+              <div className="flex justify-between items-center">
+                <div>
+                  <p className="text-sm opacity-80 mb-1">الطلبات النشطة</p>
+                  <h3 className="text-3xl font-black">{(requests || []).length}</h3>
+                </div>
+                <Bell className="w-10 h-10 opacity-20" />
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="bg-white border-2 text-slate-800 overflow-hidden relative">
+            <CardContent className="p-6">
+              <div className="flex justify-between items-center">
+                <div>
+                  <p className="text-sm text-slate-500 mb-1">إجمالي العملاء</p>
+                  <h3 className="text-3xl font-black">{(customers || []).length}</h3>
+                </div>
+                <Users className="w-10 h-10 text-primary opacity-20" />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
         <Tabs defaultValue="drivers" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3 h-12 bg-white border">
-            <TabsTrigger value="drivers" className="text-xs md:text-sm font-bold data-[state=active]:bg-primary data-[state=active]:text-white">
-              <Truck className="w-4 h-4 ml-1" />
-              الشركات ({(drivers || []).length})
+          <TabsList className="grid w-full grid-cols-3 h-14 bg-white border p-1 rounded-xl shadow-sm">
+            <TabsTrigger value="drivers" className="rounded-lg font-bold data-[state=active]:bg-primary data-[state=active]:text-white">
+              <Truck className="w-4 h-4 ml-2" />
+              الشركات المعلقة
             </TabsTrigger>
-            <TabsTrigger value="requests" className="text-xs md:text-sm font-bold data-[state=active]:bg-primary data-[state=active]:text-white">
-              <Bell className="w-4 h-4 ml-1" />
-              الطلبات ({(requests || []).length})
+            <TabsTrigger value="requests" className="rounded-lg font-bold data-[state=active]:bg-primary data-[state=active]:text-white">
+              <Bell className="w-4 h-4 ml-2" />
+              الطلبات المفتوحة
             </TabsTrigger>
-            <TabsTrigger value="customers" className="text-xs md:text-sm font-bold data-[state=active]:bg-primary data-[state=active]:text-white">
-              <Users className="w-4 h-4 ml-1" />
-              العملاء ({(customers || []).length})
+            <TabsTrigger value="customers" className="rounded-lg font-bold data-[state=active]:bg-primary data-[state=active]:text-white">
+              <Users className="w-4 h-4 ml-2" />
+              إدارة العملاء
             </TabsTrigger>
           </TabsList>
 
           <TabsContent value="drivers" className="space-y-4">
-            <div className="mb-4 text-right">
-              <h2 className="text-2xl font-bold text-slate-800">طلبات الانضمام المعلقة</h2>
+            <div className="flex justify-between items-center mb-2">
+              <h2 className="text-xl font-black text-slate-800">طلبات انضمام جديدة</h2>
+              <Badge variant="outline">{drivers?.length || 0} طلب</Badge>
             </div>
             {loadingDrivers ? (
               <div className="flex justify-center py-20"><Loader2 className="animate-spin text-primary" /></div>
             ) : drivers?.length === 0 ? (
-              <div className="text-center py-20 text-muted-foreground">لا يوجد طلبات معلقة</div>
+              <Card className="p-12 text-center border-dashed border-2">
+                <Truck className="w-12 h-12 text-slate-200 mx-auto mb-4" />
+                <p className="text-muted-foreground">لا يوجد طلبات انضمام معلقة حالياً</p>
+              </Card>
             ) : (
               <div className="grid gap-4">
                 {drivers?.map((driver) => (
-                  <Card key={driver.id} className="overflow-hidden border-2 shadow-sm">
-                    <CardContent className="p-6 flex flex-col md:flex-row-reverse justify-between items-center gap-4 text-right">
-                      <div className="flex-1 space-y-2">
-                        <h3 className="text-lg font-bold">{driver.name}</h3>
-                        <p className="text-sm text-slate-600 flex items-center justify-end gap-2">{driver.phone} <Phone className="w-4 h-4" /></p>
-                        <p className="text-sm text-slate-600 flex items-center justify-end gap-2">{driver.companyLicense} <FileText className="w-4 h-4" /></p>
-                      </div>
+                  <Card key={driver.id} className="overflow-hidden border-2 shadow-sm transition-all hover:border-primary/20">
+                    <CardContent className="p-6 flex flex-col md:flex-row justify-between items-center gap-4 text-right">
                       <div className="flex gap-2">
-                        <Button onClick={() => handleUpdateStatus(driver.id, 'approved')} className="bg-green-600 hover:bg-green-700">قبول</Button>
-                        <Button onClick={() => handleUpdateStatus(driver.id, 'rejected')} variant="outline" className="text-red-600 border-red-200">رفض</Button>
+                        <Button onClick={() => handleUpdateStatus(driver.id, 'approved')} className="bg-green-600 hover:bg-green-700 font-bold px-8">قبول</Button>
+                        <Button onClick={() => handleUpdateStatus(driver.id, 'rejected')} variant="outline" className="text-red-600 border-red-200 hover:bg-red-50">رفض</Button>
+                      </div>
+                      <div className="flex-1 space-y-2">
+                        <h3 className="text-lg font-black">{driver.name}</h3>
+                        <div className="flex flex-wrap items-center justify-end gap-x-6 gap-y-1 text-sm text-slate-600">
+                          <span className="flex items-center gap-2">{driver.phone} <Phone className="w-4 h-4 text-slate-400" /></span>
+                          <span className="flex items-center gap-2">{driver.companyLicense} <FileText className="w-4 h-4 text-slate-400" /></span>
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
@@ -182,25 +226,39 @@ export default function AdminDashboard() {
           </TabsContent>
 
           <TabsContent value="requests" className="space-y-4">
-            <div className="mb-4 text-right">
-              <h2 className="text-2xl font-bold text-slate-800">الطلبات النشطة</h2>
-            </div>
+            <h2 className="text-xl font-black text-slate-800 mb-4">الطلبات النشطة الآن</h2>
             {loadingRequests ? (
               <div className="flex justify-center py-20"><Loader2 className="animate-spin text-primary" /></div>
             ) : requests?.length === 0 ? (
-              <div className="text-center py-20 text-muted-foreground">لا توجد طلبات نشطة</div>
+              <Card className="p-12 text-center border-dashed border-2">
+                <Bell className="w-12 h-12 text-slate-200 mx-auto mb-4" />
+                <p className="text-muted-foreground">لا توجد طلبات جرس نشطة في هذه اللحظة</p>
+              </Card>
             ) : (
-              <div className="grid gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {requests?.map((req) => (
-                  <Card key={req.id} className="p-6 text-right">
-                    <div className="flex justify-between items-start mb-4">
-                      <Badge className="bg-blue-100 text-blue-700">قيد الانتظار</Badge>
-                      <h3 className="font-bold text-lg">{req.customerName}</h3>
+                  <Card key={req.id} className="p-6 text-right border-2 border-primary/10 relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-1 h-full bg-primary" />
+                    <div className="flex justify-between items-start mb-6">
+                      <Badge className="bg-blue-100 text-blue-700 animate-pulse">قيد الانتظار</Badge>
+                      <div className="text-right">
+                        <h3 className="font-black text-lg">{req.customerName}</h3>
+                        <p className="text-xs text-slate-400">{req.timestamp?.toDate()?.toLocaleTimeString('ar-JO')}</p>
+                      </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-4 text-sm text-slate-600">
-                      <div>الكمية: {req.cylinders}</div>
-                      <div>الهاتف: {req.phoneNumber}</div>
+                    <div className="grid grid-cols-2 gap-4 text-sm mb-4">
+                      <div className="bg-slate-50 p-3 rounded-xl">
+                        <p className="text-[10px] text-slate-400 mb-1">الكمية المطلوبة</p>
+                        <p className="font-black text-primary">{req.cylinders} أسطوانات</p>
+                      </div>
+                      <div className="bg-slate-50 p-3 rounded-xl">
+                        <p className="text-[10px] text-slate-400 mb-1">رقم التواصل</p>
+                        <p className="font-bold">{req.phoneNumber}</p>
+                      </div>
                     </div>
+                    <Button variant="outline" className="w-full text-xs gap-2" onClick={() => window.open(`https://www.google.com/maps?q=${req.lat},${req.lng}`)}>
+                      عرض الموقع على الخريطة <MapPin className="w-3 h-3" />
+                    </Button>
                   </Card>
                 ))}
               </div>
@@ -208,32 +266,51 @@ export default function AdminDashboard() {
           </TabsContent>
 
           <TabsContent value="customers" className="space-y-4">
-            <div className="mb-4 text-right">
-              <h2 className="text-2xl font-bold text-slate-800">إدارة العملاء</h2>
-              <p className="text-muted-foreground">قائمة بجميع العملاء المسجلين في النظام</p>
+            <div className="mb-6">
+              <h2 className="text-xl font-black text-slate-800">إدارة سجل العملاء</h2>
+              <p className="text-sm text-slate-500">متابعة جميع المستخدمين المسجلين في النظام</p>
             </div>
+            
             {loadingCustomers ? (
               <div className="flex justify-center py-20"><Loader2 className="animate-spin text-primary" /></div>
             ) : !customers || customers.length === 0 ? (
-              <div className="text-center py-20 text-muted-foreground">لا يوجد عملاء مسجلون حالياً</div>
+              <Card className="p-12 text-center border-dashed border-2">
+                <Users className="w-12 h-12 text-slate-200 mx-auto mb-4" />
+                <p className="text-muted-foreground">لا يوجد عملاء مسجلون بعد</p>
+              </Card>
             ) : (
-              <div className="grid gap-4">
-                {customers.map((customer) => (
-                  <Card key={customer.id} className="p-6 text-right">
-                    <div className="flex items-center justify-between flex-row-reverse">
-                      <div className="flex items-center gap-3 flex-row-reverse">
-                        <div className="bg-slate-100 p-2 rounded-full"><User className="w-5 h-5 text-slate-600" /></div>
-                        <div>
-                          <h3 className="font-bold">{customer.name}</h3>
-                          <p className="text-xs text-muted-foreground">{customer.phone}</p>
-                        </div>
-                      </div>
-                      <div className="text-xs text-slate-400">
-                        {customer.timestamp?.toDate()?.toLocaleDateString('ar-JO')}
-                      </div>
-                    </div>
-                  </Card>
-                ))}
+              <div className="bg-white rounded-2xl border-2 shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-right">
+                    <thead>
+                      <tr className="bg-slate-50 border-b">
+                        <th className="px-6 py-4 font-bold text-sm text-slate-600">اسم العميل</th>
+                        <th className="px-6 py-4 font-bold text-sm text-slate-600">رقم الهاتف</th>
+                        <th className="px-6 py-4 font-bold text-sm text-slate-600">تاريخ الانضمام</th>
+                        <th className="px-6 py-4 font-bold text-sm text-slate-600">الحالة</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {customers.map((customer) => (
+                        <tr key={customer.id} className="hover:bg-slate-50 transition-colors">
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-3 flex-row-reverse justify-end">
+                              <div className="bg-slate-100 p-2 rounded-full"><User className="w-4 h-4 text-slate-500" /></div>
+                              <span className="font-bold text-slate-800">{customer.name}</span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-slate-600 font-medium">{customer.phone}</td>
+                          <td className="px-6 py-4 text-slate-400 text-xs">
+                            {customer.timestamp?.toDate()?.toLocaleDateString('ar-JO', { year: 'numeric', month: 'long', day: 'numeric' })}
+                          </td>
+                          <td className="px-6 py-4">
+                            <Badge className="bg-green-50 text-green-600 border-green-100 hover:bg-green-50">نشط</Badge>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
           </TabsContent>

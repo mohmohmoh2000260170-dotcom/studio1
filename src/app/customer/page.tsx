@@ -73,14 +73,7 @@ export default function CustomerDashboard() {
     cylinders: 1,
   });
 
-  // Session Management
-  const customerDocRef = useMemo(() => {
-    if (!firestore || !customerId) return null;
-    return doc(firestore, "customers", customerId);
-  }, [firestore, customerId]);
-
-  const { data: profile } = useDoc<CustomerProfile>(customerDocRef);
-
+  // Persisted Session Check
   useEffect(() => {
     const savedId = localStorage.getItem('customerId');
     const savedName = localStorage.getItem('customerName');
@@ -93,21 +86,7 @@ export default function CustomerDashboard() {
     }
   }, []);
 
-  // Unique Session Policy Check
-  useEffect(() => {
-    if (profile && profile.sessionId) {
-      const localSessionId = localStorage.getItem('sessionId');
-      if (localSessionId && profile.sessionId !== localSessionId) {
-        toast({
-          variant: "destructive",
-          title: "جلسة نشطة أخرى",
-          description: "تم تسجيل الدخول من جهاز آخر. سيتم الخروج من هذا الجهاز.",
-        });
-        handleLogout();
-      }
-    }
-  }, [profile]);
-
+  // Location detection
   useEffect(() => {
     if (typeof window !== 'undefined' && navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
@@ -120,6 +99,28 @@ export default function CustomerDashboard() {
       );
     }
   }, []);
+
+  // Session Management - Watch for conflicts
+  const customerDocRef = useMemo(() => {
+    if (!firestore || !customerId) return null;
+    return doc(firestore, "customers", customerId);
+  }, [firestore, customerId]);
+
+  const { data: profile } = useDoc<CustomerProfile>(customerDocRef);
+
+  useEffect(() => {
+    if (profile && profile.sessionId && customerId) {
+      const localSessionId = localStorage.getItem('sessionId');
+      if (localSessionId && profile.sessionId !== localSessionId) {
+        toast({
+          variant: "destructive",
+          title: "تنبيه الجلسة",
+          description: "تم تسجيل الدخول من جهاز آخر. يرجى إعادة تسجيل الدخول هنا.",
+        });
+        handleLogout();
+      }
+    }
+  }, [profile, customerId]);
 
   const approvedDriversQuery = useMemoFirebase(() => {
     if (!firestore) return null;
@@ -150,8 +151,8 @@ export default function CustomerDashboard() {
 
     setLoadingRegistration(true);
     try {
-      const uid = 'cust_' + Math.random().toString(36).substr(2, 9);
-      const newSessionId = Math.random().toString(36).substr(2, 12);
+      const uid = 'cust_' + Math.random().toString(36).substring(2, 11);
+      const newSessionId = Math.random().toString(36).substring(2, 15);
       const customerRef = doc(firestore, "customers", uid);
       
       const customerData = {
@@ -162,6 +163,7 @@ export default function CustomerDashboard() {
         timestamp: serverTimestamp(),
       };
 
+      // Direct write to collection - instant access
       await setDoc(customerRef, customerData);
       
       localStorage.setItem('customerId', uid);
@@ -173,7 +175,8 @@ export default function CustomerDashboard() {
       setStep('discovery');
       toast({ title: "أهلاً بك", description: "تم تسجيل دخولك بنجاح." });
     } catch (err) {
-      toast({ variant: "destructive", title: "خطأ", description: "حدث خطأ أثناء التسجيل" });
+      console.error(err);
+      toast({ variant: "destructive", title: "خطأ", description: "حدث خطأ أثناء محاولة الدخول. يرجى المحاولة لاحقاً." });
     } finally {
       setLoadingRegistration(false);
     }
@@ -210,7 +213,10 @@ export default function CustomerDashboard() {
   };
 
   const handleLogout = () => {
-    localStorage.clear();
+    localStorage.removeItem('customerId');
+    localStorage.removeItem('customerName');
+    localStorage.removeItem('customerPhone');
+    localStorage.removeItem('sessionId');
     setStep('details');
     setCustomerId(null);
   };
@@ -218,27 +224,41 @@ export default function CustomerDashboard() {
   if (step === 'details') {
     return (
       <div className="min-h-screen bg-[#FBF3EE] flex flex-col items-center justify-center p-6 text-right" dir="rtl">
-        <Card className="w-full max-w-md shadow-xl bg-white">
+        <Card className="w-full max-w-md shadow-2xl border-primary/20 bg-white">
           <CardHeader className="text-center">
             <div className="mx-auto bg-primary/10 p-4 rounded-2xl w-fit mb-2"><User className="w-10 h-10 text-primary" /></div>
             <CardTitle className="text-2xl font-bold">دخول العملاء</CardTitle>
-            <CardDescription>أدخل معلوماتك للبدء فوراً</CardDescription>
+            <CardDescription>أدخل معلوماتك للبدء في طلب الغاز فوراً</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleDetailsSubmit} className="space-y-4">
               <div className="space-y-2">
                 <Label className="block text-right">الاسم بالكامل</Label>
-                <Input placeholder="مثال: خالد أحمد" value={formData.customerName} onChange={(e) => setFormData({...formData, customerName: e.target.value})} required />
+                <Input 
+                  placeholder="مثال: خالد أحمد" 
+                  value={formData.customerName} 
+                  onChange={(e) => setFormData({...formData, customerName: e.target.value})} 
+                  required 
+                  className="text-right"
+                />
               </div>
               <div className="space-y-2">
                 <Label className="block text-right">رقم الهاتف</Label>
-                <Input type="tel" placeholder="07XXXXXXXX" value={formData.phoneNumber} onChange={(e) => setFormData({...formData, phoneNumber: e.target.value})} required />
+                <Input 
+                  type="tel" 
+                  placeholder="07XXXXXXXX" 
+                  value={formData.phoneNumber} 
+                  onChange={(e) => setFormData({...formData, phoneNumber: e.target.value})} 
+                  required 
+                  className="text-right"
+                />
               </div>
               <Button type="submit" disabled={loadingRegistration} className="w-full h-12 text-lg font-bold">
-                {loadingRegistration && <Loader2 className="animate-spin ml-2" />}
-                دخول للنظام
+                {loadingRegistration ? <Loader2 className="animate-spin ml-2" /> : "دخول مباشر"}
               </Button>
-              <Link href="/"><Button variant="ghost" className="w-full">رجوع</Button></Link>
+              <Link href="/" className="block">
+                <Button variant="ghost" className="w-full">رجوع للرئيسية</Button>
+              </Link>
             </form>
           </CardContent>
         </Card>
@@ -250,29 +270,44 @@ export default function CustomerDashboard() {
     <div className="flex flex-col h-screen bg-[#FBF3EE]" dir="rtl">
       <header className="bg-white border-b px-6 py-4 flex items-center justify-between shadow-sm z-20">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={handleLogout} className="rounded-full"><ArrowRight className="w-5 h-5" /></Button>
-          <h1 className="text-lg font-bold text-primary flex items-center gap-2"><Navigation className="w-5 h-5" /> غاز دليفري</h1>
+          <Button variant="ghost" size="icon" onClick={handleLogout} className="rounded-full hover:bg-slate-100"><ArrowRight className="w-5 h-5" /></Button>
+          <h1 className="text-lg font-bold text-primary flex items-center gap-2">
+            <Navigation className="w-5 h-5" /> 
+            غاز دليفري
+          </h1>
         </div>
+        <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20">
+          أهلاً، {formData.customerName}
+        </Badge>
       </header>
 
       <div className="flex-1 flex flex-col md:flex-row overflow-hidden relative">
         <div className="w-full md:w-96 bg-white border-l overflow-y-auto p-4 space-y-4 shadow-xl z-10">
           <div className="p-2">
             <h2 className="text-sm font-bold text-muted-foreground mb-4">
-              {loadingDrivers ? "جاري البحث..." : `تم العثور على ${nearestAgencies.length} موزع متاح`}
+              {loadingDrivers ? "جاري البحث عن موزعين..." : `تم العثور على ${nearestAgencies.length} موزع متاح في منطقتك`}
             </h2>
             <div className="space-y-3">
+              {nearestAgencies.length === 0 && !loadingDrivers && (
+                <div className="p-8 text-center bg-slate-50 rounded-2xl border-2 border-dashed">
+                  <Truck className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                  <p className="text-xs text-muted-foreground">لا يوجد موزعين متاحين حالياً في منطقتك</p>
+                </div>
+              )}
               {nearestAgencies.map((agency) => (
-                <Card key={agency.id} className="border-2 hover:border-primary/50 transition-all cursor-pointer">
+                <Card key={agency.id} className="border-2 hover:border-primary/50 transition-all cursor-pointer shadow-sm">
                   <CardContent className="p-4 flex items-center justify-between flex-row-reverse">
                     <div className="flex items-center gap-3 flex-row-reverse">
-                      <div className="bg-primary/10 p-2 rounded-full"><Truck className="w-5 h-5" /></div>
+                      <div className="bg-primary/10 p-2 rounded-full text-primary"><Truck className="w-5 h-5" /></div>
                       <div className="text-right">
                         <h3 className="font-bold text-sm">{agency.name}</h3>
-                        <p className="text-[10px] text-muted-foreground">{agency.distance.toFixed(1)} كم</p>
+                        <p className="text-[10px] text-muted-foreground flex items-center gap-1 justify-end">
+                          <span>يبعد {agency.distance.toFixed(1)} كم</span>
+                          <MapPin className="w-3 h-3" />
+                        </p>
                       </div>
                     </div>
-                    <Badge className="bg-green-100 text-green-700">متاح</Badge>
+                    <Badge className="bg-green-100 text-green-700 hover:bg-green-100">متاح</Badge>
                   </CardContent>
                 </Card>
               ))}
@@ -287,24 +322,42 @@ export default function CustomerDashboard() {
           ]} />
 
           <div className="absolute bottom-6 left-0 right-0 px-6 flex justify-center">
-            <Card className="w-full max-w-sm shadow-2xl bg-white/95 rounded-[2rem] p-6">
+            <Card className="w-full max-w-sm shadow-2xl bg-white/95 rounded-[2rem] p-6 border-2 border-primary/20 backdrop-blur">
               <div className="space-y-6">
                 <div className="space-y-4">
                   <h3 className="text-center font-bold text-slate-800">كم أسطوانة غاز تحتاج؟</h3>
                   <div className="flex items-center justify-center gap-6">
-                    <Button variant="outline" size="icon" onClick={() => setFormData(p => ({...p, cylinders: Math.max(1, p.cylinders-1)}))}><Minus /></Button>
+                    <Button 
+                      variant="outline" 
+                      size="icon" 
+                      className="rounded-full w-12 h-12"
+                      onClick={() => setFormData(p => ({...p, cylinders: Math.max(1, p.cylinders-1)}))}
+                    >
+                      <Minus className="w-5 h-5" />
+                    </Button>
                     <div className="flex flex-col items-center">
-                      <span className="text-4xl font-black text-primary">{formData.cylinders}</span>
-                      <span className="text-xs text-muted-foreground">أسطوانة</span>
+                      <span className="text-5xl font-black text-primary">{formData.cylinders}</span>
+                      <span className="text-xs text-muted-foreground font-bold">أسطوانة</span>
                     </div>
-                    <Button variant="outline" size="icon" onClick={() => setFormData(p => ({...p, cylinders: p.cylinders+1}))}><Plus /></Button>
+                    <Button 
+                      variant="outline" 
+                      size="icon" 
+                      className="rounded-full w-12 h-12"
+                      onClick={() => setFormData(p => ({...p, cylinders: p.cylinders+1}))}
+                    >
+                      <Plus className="w-5 h-5" />
+                    </Button>
                   </div>
                 </div>
-                <div className="bg-slate-50 p-4 rounded-xl text-center border">
-                  <p className="text-xs font-bold text-slate-500">السعر التقديري</p>
-                  <p className="text-2xl font-black">{formData.cylinders * PRICE_PER_CYLINDER} JOD</p>
+                <div className="bg-primary/5 p-4 rounded-2xl text-center border-2 border-primary/10">
+                  <p className="text-[10px] font-bold text-primary mb-1 uppercase tracking-wider">السعر التقديري</p>
+                  <p className="text-3xl font-black text-slate-800">{formData.cylinders * PRICE_PER_CYLINDER} <span className="text-sm font-bold">دينار</span></p>
                 </div>
-                <Button onClick={handleRingBell} disabled={isRinging} className="w-full h-16 text-xl rounded-2xl shadow-lg bg-primary">
+                <Button 
+                  onClick={handleRingBell} 
+                  disabled={isRinging} 
+                  className="w-full h-16 text-xl rounded-2xl shadow-xl bg-primary hover:bg-primary/90 transition-all transform active:scale-95"
+                >
                   {isRinging ? <Loader2 className="animate-spin" /> : <Bell className="w-6 h-6 ml-2" />}
                   رن الجرس للجميع 🔔
                 </Button>
