@@ -24,10 +24,12 @@ import {
   Trash2,
   AlertTriangle,
   Loader2,
-  Database
+  Database,
+  RotateCcw,
+  UserCog
 } from 'lucide-react';
 import { useFirestore, useCollection, useMemoFirebase, errorEmitter } from '@/firebase';
-import { collection, query, where, doc, updateDoc, orderBy, getDocs, writeBatch } from 'firebase/firestore';
+import { collection, query, where, doc, updateDoc, orderBy, getDocs, writeBatch, deleteField } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -57,6 +59,8 @@ interface Customer {
   name: string;
   phone: string;
   timestamp: any;
+  deviceId?: string;
+  pin?: string;
 }
 
 interface ActiveRequest {
@@ -75,6 +79,7 @@ export default function AdminDashboard() {
   const { toast } = useToast();
   const firestore = useFirestore();
   const [isResetting, setIsResetting] = useState(false);
+  const [resettingUserId, setResettingUserId] = useState<string | null>(null);
 
   useEffect(() => {
     const isAdmin = localStorage.getItem('isAdmin');
@@ -131,6 +136,34 @@ export default function AdminDashboard() {
         });
         errorEmitter.emit('permission-error', permissionError);
       });
+  };
+
+  const handleResetUserAccount = async (id: string) => {
+    if (!firestore) return;
+    setResettingUserId(id);
+    
+    try {
+      const userRef = doc(firestore, "customers", id);
+      await updateDoc(userRef, {
+        pin: deleteField(),
+        deviceId: deleteField(),
+        sessionId: deleteField()
+      });
+      
+      toast({
+        title: "تم تصفير الحساب",
+        description: "تم مسح الرمز السري ومعلومات الجهاز. يمكن للعميل الآن تسجيل الدخول أو إعداد حسابه من جديد.",
+      });
+    } catch (error) {
+      console.error("Reset account failed:", error);
+      toast({
+        variant: "destructive",
+        title: "خطأ",
+        description: "فشل تصفير حساب المستخدم.",
+      });
+    } finally {
+      setResettingUserId(null);
+    }
   };
 
   const handleResetSystem = async () => {
@@ -363,6 +396,7 @@ export default function AdminDashboard() {
                         <th className="px-6 py-4 font-bold text-sm text-slate-600">رقم الهاتف</th>
                         <th className="px-6 py-4 font-bold text-sm text-slate-600">تاريخ الانضمام</th>
                         <th className="px-6 py-4 font-bold text-sm text-slate-600">الحالة</th>
+                        <th className="px-6 py-4 font-bold text-sm text-slate-600">إجراءات</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y">
@@ -380,6 +414,30 @@ export default function AdminDashboard() {
                           </td>
                           <td className="px-6 py-4">
                             <Badge className="bg-green-50 text-green-600 border-green-100 hover:bg-green-100 transition-colors">مستخدم نشط</Badge>
+                          </td>
+                          <td className="px-6 py-4">
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button variant="ghost" size="sm" className="text-amber-600 hover:text-amber-700 hover:bg-amber-50">
+                                  <RotateCcw className="w-4 h-4 ml-2" />
+                                  تصفير الحساب
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent dir="rtl">
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle className="text-right">تصفير حساب العميل</AlertDialogTitle>
+                                  <AlertDialogDescription className="text-right">
+                                    هل أنت متأكد من تصفير حساب {customer.name}؟ سيتم حذف الرمز السري ومعلومات الجهاز، مما يسمح للعميل بإعادة إعداد حسابه من جديد. سيتم الحفاظ على الاسم ورقم الهاتف.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter className="flex-row-reverse gap-2">
+                                  <AlertDialogCancel className="ml-2">إلغاء</AlertDialogCancel>
+                                  <AlertDialogAction onClick={() => handleResetUserAccount(customer.id)} className="bg-amber-600 hover:bg-amber-700">
+                                    {resettingUserId === customer.id ? <Loader2 className="w-4 h-4 animate-spin" /> : "تأكيد التصفير"}
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
                           </td>
                         </tr>
                       ))}
