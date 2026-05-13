@@ -54,6 +54,9 @@ export default function CustomerDashboard() {
       try {
         recaptchaVerifier.current = new RecaptchaVerifier(auth, recaptchaContainerRef.current, {
           size: 'invisible',
+          'callback': () => {
+            console.log("reCAPTCHA verified");
+          }
         });
       } catch (e) {
         console.error("Recaptcha init failed", e);
@@ -69,8 +72,14 @@ export default function CustomerDashboard() {
     }
 
     let formattedPhone = formData.phoneNumber;
-    if (formattedPhone.startsWith('0')) {
-      formattedPhone = '+962' + formattedPhone.substring(1);
+    if (!formattedPhone.startsWith('+')) {
+      if (formattedPhone.startsWith('0')) {
+        formattedPhone = '+962' + formattedPhone.substring(1);
+      } else if (!formattedPhone.startsWith('962')) {
+        formattedPhone = '+962' + formattedPhone;
+      } else {
+        formattedPhone = '+' + formattedPhone;
+      }
     }
 
     setIsLoading(true);
@@ -81,7 +90,7 @@ export default function CustomerDashboard() {
       const result = await signInWithPhoneNumber(auth, formattedPhone, recaptchaVerifier.current);
       setConfirmationResult(result);
       setStep('otp');
-      toast({ title: "تم إرسال الرمز", description: "يرجى إدخال رمز التحقق المرسل لهاتفك" });
+      toast({ title: "تم إرسال الرمز", description: "يرجى إدخال رمز التحقق (أو استخدم رمز الاختبار إذا تم تكوينه)" });
     } catch (error: any) {
       console.error(error);
       toast({ 
@@ -89,6 +98,10 @@ export default function CustomerDashboard() {
         title: "خطأ في الإرسال", 
         description: error.message 
       });
+      if (recaptchaVerifier.current) {
+        recaptchaVerifier.current.clear();
+        recaptchaVerifier.current = null;
+      }
     } finally {
       setIsLoading(false);
     }
@@ -118,7 +131,9 @@ export default function CustomerDashboard() {
     
     const requestsRef = collection(firestore, "requests");
     const requestData = {
-      ...formData,
+      customerName: formData.customerName,
+      phoneNumber: formData.phoneNumber,
+      cylinders: formData.cylinders,
       uid: verifiedUid,
       lat: location.lat,
       lng: location.lng,
@@ -172,7 +187,7 @@ export default function CustomerDashboard() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="phone" className="block text-right">رقم الهاتف</Label>
+                <Label htmlFor="phone" className="block text-right">رقم الهاتف (أردني)</Label>
                 <div className="relative">
                   <Phone className="absolute right-3 top-3 w-4 h-4 text-muted-foreground" />
                   <Input 

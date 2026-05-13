@@ -11,7 +11,7 @@ import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { RecaptchaVerifier, signInWithPhoneNumber, ConfirmationResult } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
-import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
+import { FirestorePermissionError } from '@/firebase/errors';
 import Link from 'next/link';
 
 export default function DriverRegistration() {
@@ -38,6 +38,9 @@ export default function DriverRegistration() {
       try {
         recaptchaVerifier.current = new RecaptchaVerifier(auth, recaptchaContainerRef.current, {
           size: 'invisible',
+          'callback': () => {
+            console.log("reCAPTCHA verified");
+          }
         });
       } catch (e) {
         console.error("Recaptcha init failed", e);
@@ -53,8 +56,14 @@ export default function DriverRegistration() {
     }
 
     let formattedPhone = formData.phone;
-    if (formattedPhone.startsWith('0')) {
-      formattedPhone = '+962' + formattedPhone.substring(1);
+    if (!formattedPhone.startsWith('+')) {
+      if (formattedPhone.startsWith('0')) {
+        formattedPhone = '+962' + formattedPhone.substring(1);
+      } else if (!formattedPhone.startsWith('962')) {
+        formattedPhone = '+962' + formattedPhone;
+      } else {
+        formattedPhone = '+' + formattedPhone;
+      }
     }
 
     setLoading(true);
@@ -65,7 +74,7 @@ export default function DriverRegistration() {
       const result = await signInWithPhoneNumber(auth, formattedPhone, recaptchaVerifier.current);
       setConfirmationResult(result);
       setStep('otp');
-      toast({ title: "تم إرسال الرمز", description: "يرجى إدخال رمز التحقق المرسل لهاتفك" });
+      toast({ title: "تم إرسال الرمز", description: "يرجى إدخال رمز التحقق (أو رمز الاختبار)" });
     } catch (error: any) {
       console.error(error);
       toast({ 
@@ -73,6 +82,10 @@ export default function DriverRegistration() {
         title: "خطأ في الإرسال", 
         description: error.message 
       });
+      if (recaptchaVerifier.current) {
+        recaptchaVerifier.current.clear();
+        recaptchaVerifier.current = null;
+      }
     } finally {
       setLoading(false);
     }
@@ -89,7 +102,9 @@ export default function DriverRegistration() {
 
       const driversRef = collection(firestore, "drivers");
       const driverData = {
-        ...formData,
+        name: formData.name,
+        phone: formData.phone,
+        companyLicense: formData.companyLicense,
         uid: uid,
         status: 'pending',
         timestamp: serverTimestamp(),
@@ -146,7 +161,7 @@ export default function DriverRegistration() {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="phone" className="block text-right">رقم الهاتف</Label>
+                <Label htmlFor="phone" className="block text-right">رقم الهاتف (أردني)</Label>
                 <div className="relative">
                   <Phone className="absolute right-3 top-3 w-4 h-4 text-muted-foreground" />
                   <Input 

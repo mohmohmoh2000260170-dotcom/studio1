@@ -31,6 +31,7 @@ interface PendingDriver {
   phone: string;
   companyLicense: string;
   status: string;
+  uid: string;
 }
 
 interface ActiveRequest {
