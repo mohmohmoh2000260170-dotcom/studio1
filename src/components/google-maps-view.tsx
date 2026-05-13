@@ -4,9 +4,6 @@ import React, { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { Navigation } from 'lucide-react';
 
-/**
- * استيراد ديناميكي لمكونات Leaflet لمنع مشاكل الصيرورة في جانب الخادم.
- */
 const MapContainer = dynamic(() => import('react-leaflet').then((mod) => mod.MapContainer), { ssr: false });
 const TileLayer = dynamic(() => import('react-leaflet').then((mod) => mod.TileLayer), { ssr: false });
 const Marker = dynamic(() => import('react-leaflet').then((mod) => mod.Marker), { ssr: false });
@@ -30,7 +27,6 @@ export function GoogleMapsView({ markers }: { markers: MarkerProps[] }) {
 
   useEffect(() => {
     setMounted(true);
-    // استيراد Leaflet فقط في جانب العميل
     import('leaflet').then((leaflet) => {
       setL(leaflet);
     });
@@ -44,8 +40,6 @@ export function GoogleMapsView({ markers }: { markers: MarkerProps[] }) {
 
   const createIcon = (type: 'driver' | 'customer', isOnline?: boolean) => {
     const color = type === 'driver' ? '#FA6619' : '#B31E1E';
-    
-    // استخدام SVG مباشرة بدلاً من renderToString لتجنب مشاكل compile
     const iconHtml = `
       <div style="background-color: ${color}; padding: 8px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 10px rgba(0,0,0,0.2); width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;" class="${isOnline ? 'animate-pulse' : ''}">
         <svg viewBox="0 0 24 24" width="16" height="16" stroke="white" stroke-width="2" fill="none">

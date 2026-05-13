@@ -22,13 +22,11 @@ import {
   UserPlus,
   AlertCircle,
   MessageSquare,
-  History,
   Home
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { useFirestore, useCollection, useMemoFirebase, errorEmitter, useDoc } from '@/firebase';
+import { useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
 import { collection, query, where, doc, setDoc, getDocs, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { FirestorePermissionError } from '@/firebase/errors';
 import { getDeviceId } from '@/lib/device';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -43,15 +41,6 @@ import {
   DialogTrigger,
   DialogFooter
 } from "@/components/ui/dialog";
-
-interface Driver {
-  id: string;
-  name: string;
-  status: string;
-  availability: string;
-  lat: number;
-  lng: number;
-}
 
 const PRICE_PER_CYLINDER = 7;
 
@@ -99,14 +88,6 @@ export default function CustomerDashboard() {
   useEffect(() => {
     setMounted(true);
     const savedId = localStorage.getItem('customerId');
-    const isRegistered = localStorage.getItem('isRegistered') === 'true';
-    
-    if (isRegistered) {
-      setAuthMode('login');
-    } else {
-      setAuthMode('register');
-    }
-
     if (savedId) {
       setCustomerId(savedId);
       setStep('discovery');
@@ -137,17 +118,17 @@ export default function CustomerDashboard() {
     return query(collection(firestore, "drivers"), where("status", "==", "approved"));
   }, [firestore]);
 
-  const { data: drivers } = useCollection<Driver>(approvedDriversQuery);
+  const { data: drivers } = useCollection<any>(approvedDriversQuery);
 
   const nearestAgencies = useMemo(() => {
     if (!drivers) return [];
     return drivers
-      .filter(d => d.lat && d.lng && d.availability === 'available')
-      .map(driver => ({
+      .filter((d: any) => d.lat && d.lng && d.availability === 'available')
+      .map((driver: any) => ({
         ...driver,
         distance: calculateDistance(location.lat, location.lng, driver.lat, driver.lng)
       }))
-      .sort((a, b) => a.distance - b.distance);
+      .sort((a: any, b: any) => a.distance - b.distance);
   }, [drivers, location]);
 
   const handleAuthSubmit = async (e: React.FormEvent) => {
@@ -181,13 +162,11 @@ export default function CustomerDashboard() {
         
         localStorage.setItem('customerId', docSnap.id);
         localStorage.setItem('sessionId', newSessionId);
-        localStorage.setItem('isRegistered', 'true');
         
-        router.replace('/customer'); 
         setCustomerId(docSnap.id);
         setStep('discovery');
       } else {
-        if (!snap.empty) throw new Error("هذا الرقم مسجل مسبقاً.");
+        if (!snap.empty) throw new Error("هذا الرقم مسجل مسبقاً، يرجى تسجيل الدخول أو استخدام رقم آخر");
         if (!formData.customerName) throw new Error("يرجى إدخال اسمك.");
 
         const uid = 'cust_' + Math.random().toString(36).substring(2, 11);
@@ -203,9 +182,7 @@ export default function CustomerDashboard() {
 
         localStorage.setItem('customerId', uid);
         localStorage.setItem('sessionId', newSessionId);
-        localStorage.setItem('isRegistered', 'true');
         
-        router.replace('/customer');
         setCustomerId(uid);
         setStep('discovery');
       }
@@ -372,7 +349,7 @@ export default function CustomerDashboard() {
       <div className="flex-1 relative">
         <GoogleMapsView markers={[
           { id: 'me', lat: location.lat, lng: location.lng, type: 'customer', name: 'موقعي' },
-          ...nearestAgencies.map(a => ({ id: a.id, lat: a.lat, lng: a.lng, type: 'driver' as const, name: a.name, isOnline: true }))
+          ...nearestAgencies.map((a: any) => ({ id: a.id, lat: a.lat, lng: a.lng, type: 'driver', name: a.name, isOnline: true }))
         ]} />
 
         <div className="absolute bottom-6 left-0 right-0 px-6 flex justify-center">

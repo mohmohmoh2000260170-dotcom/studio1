@@ -1,12 +1,11 @@
 "use client";
 
 import React, { useState } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
-  User, 
   LayoutDashboard, 
   LogOut, 
   Truck, 
@@ -14,14 +13,10 @@ import {
   Users, 
   RotateCcw,
   Loader2,
-  Database,
-  MapPin,
-  Clock,
-  Phone,
-  FileText
+  MapPin
 } from 'lucide-react';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where, doc, updateDoc, orderBy, getDocs, writeBatch, deleteField } from 'firebase/firestore';
+import { collection, query, where, doc, updateDoc, orderBy, deleteField } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { 
@@ -40,7 +35,6 @@ export default function AdminDashboard() {
   const router = useRouter();
   const { toast } = useToast();
   const firestore = useFirestore();
-  const [isResetting, setIsResetting] = useState(false);
   const [resettingUserId, setResettingUserId] = useState<string | null>(null);
 
   const driversQuery = useMemoFirebase(() => {
@@ -140,10 +134,24 @@ export default function AdminDashboard() {
                       <td className="p-4 font-bold">{c.name}</td>
                       <td className="p-4">{c.phone}</td>
                       <td className="p-4">
-                        <Button variant="ghost" size="sm" onClick={() => handleResetUserAccount(c.id, c.name)} className="text-amber-600 font-bold">
-                          {resettingUserId === c.id ? <Loader2 className="animate-spin" /> : <RotateCcw className="w-4 h-4 ml-2" />}
-                          تصفير هذا المستخدم
-                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="ghost" size="sm" className="text-amber-600 font-bold">
+                              {resettingUserId === c.id ? <Loader2 className="animate-spin" /> : <RotateCcw className="w-4 h-4 ml-2" />}
+                              تصفير هذا المستخدم
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent dir="rtl">
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>هل أنت متأكد؟</AlertDialogTitle>
+                              <AlertDialogDescription>سيتم مسح بيانات الـ PIN والجهاز لهذا المستخدم، وسيتعين عليه التسجيل من جديد باستخدام هاتفه.</AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>إلغاء</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => handleResetUserAccount(c.id, c.name)} className="bg-amber-600">تأكيد التصفير</AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                       </td>
                     </tr>
                   ))}
