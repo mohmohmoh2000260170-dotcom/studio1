@@ -68,7 +68,6 @@ export default function CustomerDashboard() {
   const [customerId, setCustomerId] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // Forgot PIN state
   const [resetData, setResetData] = useState({ phone: '', name: '', newPin: '' });
   const [resetStep, setResetStep] = useState<'verify' | 'new-pin'>('verify');
   const [resetLoading, setResetLoading] = useState(false);
@@ -98,7 +97,7 @@ export default function CustomerDashboard() {
           setLocation({ lat: position.coords.latitude, lng: position.coords.longitude });
           toast({ title: "تم تحديث الموقع" });
         },
-        () => toast({ variant: "destructive", title: "فشل تحديث الموقع" }),
+        () => toast({ variant: "destructive", title: "يرجى تفعيل الـ GPS" }),
         { enableHighAccuracy: true }
       );
     }
@@ -137,14 +136,8 @@ export default function CustomerDashboard() {
 
   const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (loading) return;
+    if (loading || !firestore) return;
     setErrorMsg(null);
-
-    if (!formData.phoneNumber || formData.pin.length !== 4) {
-      setErrorMsg("يرجى إدخال الهاتف ورمز PIN (4 أرقام)");
-      return;
-    }
-    
     setLoading(true);
 
     try {
@@ -170,7 +163,7 @@ export default function CustomerDashboard() {
         setCustomerId(docSnap.id);
         setStep('discovery');
       } else {
-        if (!snap.empty) throw new Error("هذا الرقم مسجل مسبقاً، يرجى تسجيل الدخول أو استخدام رقم آخر");
+        if (!snap.empty) throw new Error("هذا الرقم مسجل مسبقاً، يرجى تسجيل الدخول");
         if (!formData.customerName) throw new Error("يرجى إدخال اسمك.");
 
         const uid = 'cust_' + Math.random().toString(36).substring(2, 11);
@@ -192,12 +185,14 @@ export default function CustomerDashboard() {
       }
     } catch (err: any) {
       setErrorMsg(err.message);
+      toast({ variant: "destructive", title: "خطأ", description: err.message });
     } finally {
       setLoading(false);
     }
   };
 
   const handleResetPin = async () => {
+    if (!firestore) return;
     setResetLoading(true);
     setResetError(null);
     try {
@@ -250,12 +245,20 @@ export default function CustomerDashboard() {
     setCustomerId(null);
   };
 
+  const handleRefresh = () => {
+    window.location.reload();
+  };
+
   if (!mounted) return null;
 
   if (step === 'auth') {
     return (
       <div className="min-h-screen bg-[#FBF3EE] flex flex-col items-center justify-center p-6 text-right" dir="rtl">
-        <Card className="w-full max-w-md shadow-xl border-primary/20 bg-white">
+        <header className="absolute top-0 w-full p-4 flex justify-between items-center bg-white/50 backdrop-blur border-b">
+           <Button variant="ghost" size="icon" onClick={handleRefresh} className="text-primary"><RotateCcw className="w-5 h-5" /></Button>
+           <h2 className="font-bold text-primary">غاز دليفري</h2>
+        </header>
+        <Card className="w-full max-w-md shadow-xl border-primary/20 bg-white mt-16">
           <CardHeader className="text-center pb-2 bg-slate-50 border-b mb-6">
             <div className="mx-auto bg-primary/10 p-4 rounded-2xl w-fit mb-2"><User className="w-10 h-10 text-primary" /></div>
             <CardTitle className="text-2xl font-bold">دخول العملاء</CardTitle>
@@ -296,7 +299,7 @@ export default function CustomerDashboard() {
                         {resetStep === 'verify' ? (
                           <Input placeholder="الاسم المسجل" value={resetData.name} onChange={(e) => setResetData({...resetData, name: e.target.value})} />
                         ) : (
-                          <Input type="password" placeholder="PIN جديد" maxLength={4} value={resetData.newPin} onChange={(e) => setResetData({...resetData, newPin: e.target.value})} />
+                          <Input type="password" placeholder="PIN جديد" maxLength={4} value={resetData.newPin} onChange={(e) => setResetData({...resetData, newPin: e.target.value.replace(/\D/g, '')})} />
                         )}
                         {resetError && <p className="text-xs text-red-500 font-bold">{resetError}</p>}
                       </div>
@@ -348,7 +351,7 @@ export default function CustomerDashboard() {
           </h1>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" onClick={() => window.location.reload()} className="text-slate-400 hover:text-primary"><RotateCcw className="w-4 h-4" /></Button>
+          <Button variant="ghost" size="icon" onClick={handleRefresh} className="text-slate-400 hover:text-primary"><RotateCcw className="w-4 h-4" /></Button>
           <Badge variant="outline" className="bg-primary/5 text-primary">{profile?.name || "عميل"}</Badge>
         </div>
       </header>

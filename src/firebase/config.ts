@@ -1,6 +1,6 @@
 /**
- * Firebase configuration object for production.
- * Linked to the gas-delivery-jo production project.
+ * Firebase configuration object.
+ * Linked to the gas-delivery-jo project.
  */
 export const firebaseConfig = {
   apiKey: "AIzaSyA9OYojXCfc8PfDeESLF3jeTuCXIJPNDVY",

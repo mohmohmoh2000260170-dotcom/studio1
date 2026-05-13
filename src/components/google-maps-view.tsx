@@ -92,25 +92,22 @@ export function GoogleMapsView({ markers }: { markers: MarkerProps[] }) {
         <button 
           className="bg-white p-3 rounded-full shadow-lg border hover:bg-slate-50 transition-all active:scale-95"
           onClick={() => window.location.reload()}
-          title="إعادة تحميل التطبيق"
+          title="تحديث التطبيق"
         >
-          <RotateCcw className="w-6 h-6 text-slate-600" />
+          <RotateCcw className="w-6 h-6 text-primary" />
         </button>
         <button 
           className="bg-white p-3 rounded-full shadow-lg border hover:bg-slate-50 transition-all active:scale-95"
           onClick={() => {
             if (navigator.geolocation) {
               navigator.geolocation.getCurrentPosition((pos) => {
-                const url = new URL(window.location.href);
-                url.searchParams.set('lat', pos.coords.latitude.toString());
-                url.searchParams.set('lng', pos.coords.longitude.toString());
-                window.location.href = url.toString();
+                 window.location.reload();
               });
             }
           }}
-          title="تحديث الموقع"
+          title="موقعي الحالي"
         >
-          <Navigation className="w-6 h-6 text-primary" />
+          <Navigation className="w-6 h-6 text-slate-600" />
         </button>
       </div>
     </div>
