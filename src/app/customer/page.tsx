@@ -18,11 +18,12 @@ import {
   MapPin, 
   Navigation,
   Truck,
-  AlertCircle
+  AlertCircle,
+  User
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore, useCollection, useMemoFirebase, errorEmitter } from '@/firebase';
-import { collection, addDoc, serverTimestamp, query, where } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, query, where, doc, setDoc } from 'firebase/firestore';
 import { FirestorePermissionError } from '@/firebase/errors';
 import Link from 'next/link';
 
@@ -36,7 +37,6 @@ interface Driver {
   lastSeen?: string;
 }
 
-// Haversine formula to calculate distance in KM
 function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
   if (!lat1 || !lon1 || !lat2 || !lon2) return 999;
   const R = 6371;
@@ -60,6 +60,7 @@ export default function CustomerDashboard() {
   
   const [step, setStep] = useState<'details' | 'discovery'>('details');
   const [isRinging, setIsRinging] = useState(false);
+  const [loadingRegistration, setLoadingRegistration] = useState(false);
   const [location, setLocation] = useState({ lat: 31.9454, lng: 35.9284 });
   const [locPermission, setLocPermission] = useState<'granted' | 'denied' | 'pending'>('pending');
   
@@ -69,7 +70,19 @@ export default function CustomerDashboard() {
     cylinders: '1',
   });
 
-  // Get user location with permission handling
+  // Check for existing customer session
+  useEffect(() => {
+    const savedId = localStorage.getItem('customerId');
+    const savedName = localStorage.getItem('customerName');
+    const savedPhone = localStorage.getItem('customerPhone');
+    
+    if (savedId && savedName && savedPhone) {
+      setFormData(prev => ({ ...prev, customerName: savedName, phoneNumber: savedPhone }));
+      setStep('discovery');
+    }
+  }, []);
+
+  // Get user location immediately
   useEffect(() => {
     if (typeof window !== 'undefined' && navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
@@ -89,7 +102,6 @@ export default function CustomerDashboard() {
     }
   }, []);
 
-  // Fetch Approved Drivers
   const approvedDriversQuery = useMemoFirebase(() => {
     if (!firestore) return null;
     return query(collection(firestore, "drivers"), where("status", "==", "approved"));
@@ -97,11 +109,10 @@ export default function CustomerDashboard() {
 
   const { data: drivers, loading: loadingDrivers } = useCollection<Driver>(approvedDriversQuery);
 
-  // Calculate distances and sort closest first
   const nearestAgencies = useMemo(() => {
     if (!drivers) return [];
     return drivers
-      .filter(d => d.lat && d.lng) // Only show drivers with active GPS
+      .filter(d => d.lat && d.lng && d.availability === 'available')
       .map(driver => ({
         ...driver,
         distance: calculateDistance(location.lat, location.lng, driver.lat, driver.lng)
@@ -109,25 +120,57 @@ export default function CustomerDashboard() {
       .sort((a, b) => a.distance - b.distance);
   }, [drivers, location]);
 
-  const handleDetailsSubmit = (e: React.FormEvent) => {
+  const handleDetailsSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.customerName || !formData.phoneNumber || !formData.cylinders) {
       toast({ variant: "destructive", title: "خطأ", description: "يرجى تعبئة جميع الحقول" });
       return;
     }
-    setStep('discovery');
+
+    if (!firestore) return;
+
+    setLoadingRegistration(true);
+    try {
+      const tempId = 'cust_' + Math.random().toString(36).substr(2, 9);
+      const customerRef = doc(firestore, "customers", tempId);
+      
+      const customerData = {
+        name: formData.customerName,
+        phone: formData.phoneNumber,
+        uid: tempId,
+        timestamp: serverTimestamp(),
+      };
+
+      await setDoc(customerRef, customerData);
+      
+      localStorage.setItem('customerId', tempId);
+      localStorage.setItem('customerName', formData.customerName);
+      localStorage.setItem('customerPhone', formData.phoneNumber);
+      
+      setStep('discovery');
+      toast({
+        title: "تم التسجيل بنجاح",
+        description: "أهلاً بك! يمكنك الآن طلب الغاز مباشرة.",
+      });
+    } catch (err) {
+      console.error(err);
+      toast({ variant: "destructive", title: "خطأ", description: "حدث خطأ أثناء التسجيل" });
+    } finally {
+      setLoadingRegistration(false);
+    }
   };
 
   const handleRingBell = () => {
     if (!firestore) return;
     setIsRinging(true);
     
+    const customerId = localStorage.getItem('customerId') || 'guest';
     const requestsRef = collection(firestore, "requests");
     const requestData = {
       customerName: formData.customerName,
       phoneNumber: formData.phoneNumber,
       cylinders: formData.cylinders,
-      uid: 'cust_' + Math.random().toString(36).substr(2, 9),
+      uid: customerId,
       lat: location.lat,
       lng: location.lng,
       status: 'pending',
@@ -154,16 +197,23 @@ export default function CustomerDashboard() {
       });
   };
 
+  const handleLogout = () => {
+    localStorage.removeItem('customerId');
+    localStorage.removeItem('customerName');
+    localStorage.removeItem('customerPhone');
+    setStep('details');
+  };
+
   if (step === 'details') {
     return (
       <div className="min-h-screen bg-[#FBF3EE] flex flex-col items-center justify-center p-6 text-right" dir="rtl">
         <Card className="w-full max-w-md shadow-xl border-primary/20 bg-white">
           <CardHeader className="text-center space-y-2">
             <div className="mx-auto bg-primary/10 p-4 rounded-2xl w-fit mb-2">
-              <Flame className="w-10 h-10 text-primary" />
+              <User className="w-10 h-10 text-primary" />
             </div>
-            <CardTitle className="text-2xl font-bold">طلب جديد</CardTitle>
-            <CardDescription>أدخل معلوماتك للعثور على أقرب موزعي الغاز</CardDescription>
+            <CardTitle className="text-2xl font-bold">دخول العملاء</CardTitle>
+            <CardDescription>أدخل معلوماتك للبدء في طلب الغاز فوراً</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleDetailsSubmit} className="space-y-4">
@@ -208,8 +258,9 @@ export default function CustomerDashboard() {
                   />
                 </div>
               </div>
-              <Button type="submit" className="w-full h-12 text-lg font-bold mt-6">
-                البحث عن أقرب موزع
+              <Button type="submit" disabled={loadingRegistration} className="w-full h-12 text-lg font-bold mt-6">
+                {loadingRegistration ? <Loader2 className="animate-spin ml-2" /> : null}
+                دخول للنظام
               </Button>
               <Link href="/">
                 <Button variant="ghost" className="w-full mt-2">رجوع</Button>
@@ -225,7 +276,7 @@ export default function CustomerDashboard() {
     <div className="flex flex-col h-screen bg-[#FBF3EE]" dir="rtl">
       <header className="bg-white border-b px-6 py-4 flex items-center justify-between shadow-sm z-20">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => setStep('details')} className="rounded-full">
+          <Button variant="ghost" size="icon" onClick={handleLogout} className="rounded-full">
             <ArrowRight className="w-5 h-5" />
           </Button>
           <h1 className="text-lg font-bold text-primary flex items-center gap-2">
@@ -240,7 +291,7 @@ export default function CustomerDashboard() {
           <div className="absolute top-4 left-4 right-4 z-50">
             <Badge variant="destructive" className="w-full py-2 flex items-center justify-center gap-2 text-sm shadow-lg">
               <AlertCircle className="w-4 h-4" />
-              خدمة الموقع معطلة. قد لا تكون النتائج دقيقة. يرجى تفعيل GPS.
+              خدمة الموقع معطلة. يرجى تفعيل GPS لرؤية الموزعين حولك.
             </Badge>
           </div>
         )}
@@ -259,7 +310,7 @@ export default function CustomerDashboard() {
             ) : nearestAgencies.length === 0 ? (
               <div className="text-center py-10 space-y-4">
                 <Truck className="w-12 h-12 text-slate-200 mx-auto" />
-                <p className="text-muted-foreground italic text-sm">لا يوجد موزعون نشطون (Online) في منطقتك حالياً</p>
+                <p className="text-muted-foreground italic text-sm">لا يوجد موزعون نشطون حالياً في منطقتك</p>
               </div>
             ) : (
               <div className="space-y-3">
@@ -278,12 +329,7 @@ export default function CustomerDashboard() {
                           </div>
                         </div>
                       </div>
-                      <Badge 
-                        variant={agency.availability === 'available' ? 'default' : 'secondary'}
-                        className={agency.availability === 'available' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}
-                      >
-                        {agency.availability === 'available' ? 'متاح' : 'مشغول'}
-                      </Badge>
+                      <Badge className="bg-green-100 text-green-700">متاح</Badge>
                     </CardContent>
                   </Card>
                 ))}
@@ -302,7 +348,7 @@ export default function CustomerDashboard() {
               lng: a.lng,
               type: 'driver' as const,
               name: a.name,
-              isOnline: a.availability === 'available'
+              isOnline: true
             }))
           ]} />
 
@@ -321,7 +367,7 @@ export default function CustomerDashboard() {
                   {isRinging ? <Loader2 className="animate-spin" /> : <Bell className="w-6 h-6" />}
                   رن الجرس للجميع 🔔
                 </Button>
-                <p className="text-[10px] text-center text-muted-foreground font-medium">سيتم إرسال موقعك لجميع الموزعين المتاحين القريبين منك</p>
+                <p className="text-[10px] text-center text-muted-foreground font-medium">سيتم إرسال موقعك للموزعين المتاحين حولك</p>
               </CardContent>
             </Card>
           </div>

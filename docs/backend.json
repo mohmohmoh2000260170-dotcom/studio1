@@ -19,6 +19,18 @@
       },
       "required": ["name", "phone", "status", "availability", "uid"]
     },
+    "Customer": {
+      "title": "Customer",
+      "description": "General user profile for requesting gas. Access is immediate upon registration.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "phone": { "type": "string" },
+        "uid": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "phone", "uid"]
+    },
     "Request": {
       "title": "Delivery Request",
       "description": "Customer request for gas delivery. Only accessible to authenticated and approved drivers.",
@@ -43,6 +55,10 @@
     "/drivers/{driverId}": {
       "schema": "Driver",
       "description": "Only approved drivers can update their location coordinates."
+    },
+    "/customers/{customerId}": {
+      "schema": "Customer",
+      "description": "Stores basic customer info for faster identification."
     },
     "/requests/{requestId}": {
       "schema": "Request",
