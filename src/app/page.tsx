@@ -48,17 +48,17 @@ export default function Home() {
             </Card>
           </Link>
 
-          <Link href="/driver" className="group">
+          <Link href="/driver/login" className="group">
             <Card className="h-full border-2 border-transparent hover:border-primary transition-all duration-300 shadow-lg hover:shadow-primary/10 bg-white/80 backdrop-blur">
               <CardHeader className="text-center">
                 <div className="mx-auto bg-secondary p-5 rounded-full w-fit group-hover:scale-110 transition-transform duration-300">
                   <Truck className="w-10 h-10 text-primary" />
                 </div>
-                <CardTitle className="text-2xl mt-4">أنا سائق</CardTitle>
-                <CardDescription className="text-base">أريد استقبال طلبات التوصيل</CardDescription>
+                <CardTitle className="text-2xl mt-4">أنا سائق / شركة</CardTitle>
+                <CardDescription className="text-base">تسجيل الدخول أو الانضمام للشبكة</CardDescription>
               </CardHeader>
               <CardContent>
-                <Button className="w-full text-lg h-12 bg-secondary text-primary hover:bg-secondary/80" variant="secondary">دخول كسائق</Button>
+                <Button className="w-full text-lg h-12 bg-secondary text-primary hover:bg-secondary/80" variant="secondary">دخول السائقين</Button>
               </CardContent>
             </Card>
           </Link>

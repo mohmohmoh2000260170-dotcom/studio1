@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Truck, FileText, Phone, User, Loader2 } from 'lucide-react';
+import { Truck, FileText, Phone, User, Loader2, ArrowRight } from 'lucide-react';
 import { useFirestore, errorEmitter } from '@/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
@@ -35,14 +35,13 @@ export default function DriverRegistration() {
     setLoading(true);
     try {
       const driversRef = collection(firestore, "drivers");
-      // Generating a temporary client-side ID to track this driver
       const tempId = 'drv_' + Math.random().toString(36).substr(2, 9);
       
       const driverData = {
         name: formData.name,
         phone: formData.phone,
         companyLicense: formData.companyLicense,
-        uid: tempId, // Using a generated ID since we skipped SMS Auth
+        uid: tempId,
         status: 'pending',
         timestamp: serverTimestamp(),
       };
@@ -127,8 +126,11 @@ export default function DriverRegistration() {
               {loading ? <Loader2 className="animate-spin ml-2" /> : null}
               تقديم الطلب للمراجعة
             </Button>
-            <Link href="/">
-              <Button variant="ghost" className="w-full mt-2">رجوع</Button>
+            <Link href="/driver/login">
+              <Button variant="ghost" className="w-full mt-2 gap-2">
+                لديك حساب بالفعل؟ تسجيل الدخول
+                <ArrowRight className="w-4 h-4" />
+              </Button>
             </Link>
           </form>
         </CardContent>

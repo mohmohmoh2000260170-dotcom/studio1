@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Flame, MapPin, Clock, ArrowRight, Truck, ShoppingCart, Phone, ExternalLink, ShieldAlert, XCircle } from 'lucide-react';
+import { Flame, MapPin, Clock, ArrowRight, Truck, ShoppingCart, Phone, ExternalLink, ShieldAlert, XCircle, LogOut } from 'lucide-react';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, where, orderBy, getDocs } from 'firebase/firestore';
 import Link from 'next/link';
@@ -25,6 +25,7 @@ interface DriverInfo {
   id: string;
   status: 'pending' | 'approved' | 'rejected';
   name: string;
+  phone: string;
 }
 
 export default function DriverDashboard() {
@@ -37,7 +38,7 @@ export default function DriverDashboard() {
   useEffect(() => {
     const id = localStorage.getItem('driverId');
     if (!id) {
-      router.push('/driver/register');
+      router.push('/driver/login');
     } else {
       setDriverId(id);
     }
@@ -54,9 +55,8 @@ export default function DriverDashboard() {
           const doc = snap.docs[0];
           setDriverInfo({ id: doc.id, ...doc.data() } as DriverInfo);
         } else {
-          // If logged in but no record, might need to re-register or clear storage
           localStorage.removeItem('driverId');
-          router.push('/driver/register');
+          router.push('/driver/login');
         }
       } catch (e) {
         console.error("Error fetching driver info", e);
@@ -79,6 +79,11 @@ export default function DriverDashboard() {
 
   const { data: requests, loading: loadingRequests } = useCollection<GasRequest>(requestsQuery);
 
+  const handleLogout = () => {
+    localStorage.removeItem('driverId');
+    router.push('/driver/login');
+  };
+
   const openInGoogleMaps = (lat: number, lng: number) => {
     window.open(`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`, '_blank');
   };
@@ -89,22 +94,20 @@ export default function DriverDashboard() {
     </div>
   );
 
-  // Status: Pending - Show the "Waiting for Approval" screen
+  // Status: Pending
   if (driverInfo?.status === 'pending') {
     return (
       <div className="min-h-screen bg-[#FBF3EE] flex flex-col items-center justify-center p-6 text-center" dir="rtl">
         <div className="bg-white p-8 rounded-3xl shadow-xl border-2 border-primary/10 max-w-md space-y-6">
           <div className="mx-auto bg-amber-100 p-6 rounded-full w-fit animate-pulse">
-            <ShieldAlert className="w-16 h-16 text-amber-600" />
+            <Clock className="w-16 h-16 text-amber-600" />
           </div>
           <h1 className="text-2xl font-bold text-foreground">بانتظار موافقة الإدارة</h1>
           <p className="text-muted-foreground leading-relaxed">
-            أهلاً يا {driverInfo.name}. تم التحقق من رقم هاتفك بنجاح. 
-            حسابك حالياً قيد المراجعة من قبل الإدارة. سيتم تفعيل حسابك لتبدأ باستقبال الطلبات فور التأكد من بياناتك.
+            أهلاً يا {driverInfo.name}. حسابك حالياً قيد المراجعة. 
+            سيتم تفعيل حسابك لتبدأ باستقبال الطلبات فور التأكد من بياناتك من قبل المشرف.
           </p>
-          <Link href="/" className="block">
-            <Button variant="outline" className="w-full">العودة للرئيسية</Button>
-          </Link>
+          <Button onClick={handleLogout} variant="outline" className="w-full">خروج</Button>
         </div>
       </div>
     );
@@ -120,26 +123,22 @@ export default function DriverDashboard() {
           </div>
           <h1 className="text-2xl font-bold text-foreground">تم رفض الطلب</h1>
           <p className="text-muted-foreground leading-relaxed">
-            نعتذر منك يا {driverInfo.name}. لم تتم الموافقة على طلب انضمامك للشبكة حالياً. يرجى التواصل مع الإدارة لمزيد من التفاصيل.
+            نعتذر منك يا {driverInfo.name}. لم تتم الموافقة على طلب انضمامك حالياً.
           </p>
-          <Link href="/" className="block">
-            <Button variant="outline" className="w-full">العودة للرئيسية</Button>
-          </Link>
+          <Button onClick={handleLogout} variant="outline" className="w-full">خروج</Button>
         </div>
       </div>
     );
   }
 
-  // Status: Approved - Show the Requests List
+  // Status: Approved
   return (
     <div className="min-h-screen bg-[#FBF3EE] flex flex-col" dir="rtl">
       <header className="bg-white border-b px-6 py-4 flex items-center justify-between shadow-sm sticky top-0 z-10">
         <div className="flex items-center gap-4">
-          <Link href="/">
-            <Button variant="ghost" size="icon" className="rounded-full">
-              <ArrowRight className="w-5 h-5" />
-            </Button>
-          </Link>
+          <Button variant="ghost" size="icon" onClick={handleLogout} className="rounded-full text-muted-foreground hover:text-red-500">
+            <LogOut className="w-5 h-5" />
+          </Button>
           <div className="flex items-center gap-2">
             <div className="bg-primary p-2 rounded-lg">
               <Flame className="w-5 h-5 text-white" />

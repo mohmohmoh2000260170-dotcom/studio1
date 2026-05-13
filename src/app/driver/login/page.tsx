@@ -1,0 +1,136 @@
+"use client";
+
+import React, { useState } from 'react';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Phone, LogIn, Loader2, UserPlus, AlertCircle, Clock, XCircle } from 'lucide-react';
+import { useFirestore } from '@/firebase';
+import { collection, query, where, getDocs } from 'firebase/firestore';
+import { useRouter } from 'next/navigation';
+import { useToast } from '@/hooks/use-toast';
+import Link from 'next/link';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+
+export default function DriverLogin() {
+  const router = useRouter();
+  const { toast } = useToast();
+  const firestore = useFirestore();
+
+  const [loading, setLoading] = useState(false);
+  const [phone, setPhone] = useState('');
+  const [statusMessage, setStatusMessage] = useState<{ type: 'pending' | 'rejected' | 'error', text: string } | null>(null);
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!phone) {
+      toast({ variant: "destructive", title: "خطأ", description: "يرجى إدخال رقم الهاتف" });
+      return;
+    }
+
+    setLoading(true);
+    setStatusMessage(null);
+
+    try {
+      const q = query(collection(firestore, "drivers"), where("phone", "==", phone));
+      const snap = await getDocs(q);
+
+      if (snap.empty) {
+        setStatusMessage({ type: 'error', text: 'رقم الهاتف غير مسجل. يرجى تسجيل حساب جديد أولاً.' });
+        setLoading(false);
+        return;
+      }
+
+      const driverDoc = snap.docs[0];
+      const data = driverDoc.data();
+
+      if (data.status === 'pending') {
+        setStatusMessage({ type: 'pending', text: 'حسابك لا يزال قيد المراجعة من قبل الإدارة. يرجى الانتظار.' });
+      } else if (data.status === 'rejected') {
+        setStatusMessage({ type: 'rejected', text: 'نعتذر، لقد تم رفض طلب انضمامك. يرجى التواصل مع الإدارة.' });
+      } else if (data.status === 'approved') {
+        localStorage.setItem('driverId', data.uid);
+        toast({ title: "تم تسجيل الدخول", description: "مرحباً بك مجدداً!" });
+        router.push('/driver');
+      }
+    } catch (error) {
+      console.error(error);
+      toast({ variant: "destructive", title: "خطأ", description: "حدث خطأ أثناء محاولة تسجيل الدخول" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-[#FBF3EE] flex flex-col items-center justify-center p-6 text-right" dir="rtl">
+      <Card className="w-full max-w-md shadow-xl border-primary/20 bg-white">
+        <CardHeader className="text-center space-y-2">
+          <div className="mx-auto bg-primary/10 p-4 rounded-2xl w-fit mb-2">
+            <LogIn className="w-10 h-10 text-primary" />
+          </div>
+          <CardTitle className="text-2xl font-bold">دخول السائقين</CardTitle>
+          <CardDescription>أدخل رقم هاتفك المسجل للمتابعة</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="phone" className="block text-right">رقم الهاتف</Label>
+              <div className="relative">
+                <Phone className="absolute right-3 top-3 w-4 h-4 text-muted-foreground" />
+                <Input 
+                  id="phone" 
+                  type="tel"
+                  placeholder="07XXXXXXXX" 
+                  className="pr-10 text-right"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  required
+                />
+              </div>
+            </div>
+
+            {statusMessage && (
+              <Alert variant={statusMessage.type === 'error' || statusMessage.type === 'rejected' ? "destructive" : "default"} className={statusMessage.type === 'pending' ? "border-amber-200 bg-amber-50 text-amber-800" : ""}>
+                {statusMessage.type === 'pending' && <Clock className="h-4 w-4 text-amber-600" />}
+                {statusMessage.type === 'rejected' && <XCircle className="h-4 w-4" />}
+                {statusMessage.type === 'error' && <AlertCircle className="h-4 w-4" />}
+                <AlertTitle className="mr-6 font-bold">
+                  {statusMessage.type === 'pending' ? "قيد المراجعة" : statusMessage.type === 'rejected' ? "تم الرفض" : "تنبيه"}
+                </AlertTitle>
+                <AlertDescription className="mr-6">
+                  {statusMessage.text}
+                </AlertDescription>
+              </Alert>
+            )}
+
+            <Button type="submit" disabled={loading} className="w-full h-12 text-lg font-bold mt-2">
+              {loading ? <Loader2 className="animate-spin ml-2" /> : null}
+              تسجيل الدخول
+            </Button>
+          </form>
+
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-white px-2 text-muted-foreground">أو</span>
+            </div>
+          </div>
+
+          <Link href="/driver/register" className="block">
+            <Button variant="outline" className="w-full h-12 gap-2 border-primary text-primary hover:bg-primary/5">
+              <UserPlus className="w-4 h-4" />
+              تسجيل كشركة غاز جديدة
+            </Button>
+          </Link>
+          
+          <Link href="/">
+            <Button variant="ghost" className="w-full">رجوع للرئيسية</Button>
+          </Link>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
