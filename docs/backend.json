@@ -3,24 +3,25 @@
   "entities": {
     "Driver": {
       "title": "Driver",
-      "description": "Information about a gas delivery driver or company. Admin contact: Mohammadalkhalileh296@gmail.com, 0788526771.",
+      "description": "Gas delivery driver or agency profile. Coordinate updates are restricted to 'approved' status and 'available' mode.",
       "type": "object",
       "properties": {
-        "name": { "type": "string", "description": "The driver's name or company name." },
-        "phone": { "type": "string", "description": "Contact phone number." },
-        "companyLicense": { "type": "string", "description": "The official business license number." },
-        "status": { "type": "string", "enum": ["pending", "approved", "rejected"], "description": "Current registration status." },
-        "availability": { "type": "string", "enum": ["available", "busy"], "description": "Whether the driver is ready to take orders." },
-        "lat": { "type": "number", "description": "Current latitude of the driver." },
-        "lng": { "type": "number", "description": "Current longitude of the driver." },
-        "timestamp": { "type": "string", "format": "date-time", "description": "When the registration was created." },
-        "uid": { "type": "string", "description": "The verified Firebase Auth UID." }
+        "name": { "type": "string" },
+        "phone": { "type": "string" },
+        "companyLicense": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "availability": { "type": "string", "enum": ["available", "busy"] },
+        "lat": { "type": "number" },
+        "lng": { "type": "number" },
+        "lastSeen": { "type": "string", "format": "date-time" },
+        "uid": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
       },
-      "required": ["name", "phone", "companyLicense", "status", "availability", "lat", "lng", "uid"]
+      "required": ["name", "phone", "status", "availability", "uid"]
     },
     "Request": {
       "title": "Delivery Request",
-      "description": "A customer request for gas cylinder delivery. Includes location and contact details.",
+      "description": "Customer request for gas delivery. Only accessible to authenticated and approved drivers.",
       "type": "object",
       "properties": {
         "customerName": { "type": "string" },
@@ -29,8 +30,8 @@
         "lat": { "type": "number" },
         "lng": { "type": "number" },
         "status": { "type": "string", "enum": ["pending", "completed"] },
-        "timestamp": { "type": "string", "format": "date-time" },
-        "uid": { "type": "string", "description": "The verified customer UID." }
+        "uid": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
       },
       "required": ["customerName", "phoneNumber", "cylinders", "lat", "lng", "status", "uid"]
     }
@@ -41,11 +42,11 @@
   "firestore": {
     "/drivers/{driverId}": {
       "schema": "Driver",
-      "description": "Collection of driver registrations."
+      "description": "Only approved drivers can update their location coordinates."
     },
     "/requests/{requestId}": {
       "schema": "Request",
-      "description": "Collection of active customer delivery requests."
+      "description": "Active requests visible to all approved and available drivers."
     }
   }
 }

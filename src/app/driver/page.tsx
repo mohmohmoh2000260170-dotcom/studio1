@@ -2,11 +2,10 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
 import { 
   Flame, 
   MapPin, 
@@ -14,11 +13,10 @@ import {
   Truck, 
   ShoppingCart, 
   Phone, 
-  ExternalLink, 
   LogOut, 
-  CheckCircle2,
-  XCircle,
-  Activity
+  Activity,
+  Loader2,
+  AlertTriangle
 } from 'lucide-react';
 import { useFirestore, useCollection, useMemoFirebase, errorEmitter } from '@/firebase';
 import { collection, query, where, orderBy, getDocs, doc, updateDoc } from 'firebase/firestore';
@@ -55,6 +53,7 @@ export default function DriverDashboard() {
   const [driverId, setDriverId] = useState<string | null>(null);
   const [driverInfo, setDriverInfo] = useState<DriverInfo | null>(null);
   const [loadingInfo, setLoadingInfo] = useState(true);
+  const [gpsError, setGpsError] = useState<string | null>(null);
 
   useEffect(() => {
     const id = localStorage.getItem('driverId');
@@ -73,8 +72,8 @@ export default function DriverDashboard() {
         const q = query(collection(firestore, "drivers"), where("uid", "==", driverId));
         const snap = await getDocs(q);
         if (!snap.empty) {
-          const doc = snap.docs[0];
-          setDriverInfo({ id: doc.id, ...doc.data() } as DriverInfo);
+          const docSnap = snap.docs[0];
+          setDriverInfo({ id: docSnap.id, ...docSnap.data() } as DriverInfo);
         } else {
           localStorage.removeItem('driverId');
           router.push('/driver/login');
@@ -89,24 +88,45 @@ export default function DriverDashboard() {
     fetchDriver();
   }, [firestore, driverId, router]);
 
-  // Update location automatically
+  // Background Location Update Logic (Every 30 seconds)
   useEffect(() => {
-    if (!firestore || !driverInfo || driverInfo.status !== 'approved') return;
+    if (!firestore || !driverInfo || driverInfo.status !== 'approved' || driverInfo.availability !== 'available') {
+      return;
+    }
 
-    const updateLoc = () => {
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition((pos) => {
+    const updateLocation = () => {
+      if (!navigator.geolocation) {
+        setGpsError("المتصفح لا يدعم تحديد الموقع");
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
           const driverRef = doc(firestore, "drivers", driverInfo.id);
           updateDoc(driverRef, {
             lat: pos.coords.latitude,
-            lng: pos.coords.longitude
+            lng: pos.coords.longitude,
+            lastSeen: new Date().toISOString()
+          }).catch(async (err) => {
+            const permissionError = new FirestorePermissionError({
+              path: driverRef.path,
+              operation: 'update',
+              requestResourceData: { lat: pos.coords.latitude, lng: pos.coords.longitude },
+            });
+            errorEmitter.emit('permission-error', permissionError);
           });
-        });
-      }
+          setGpsError(null);
+        },
+        (error) => {
+          console.error("GPS Error:", error);
+          setGpsError("يرجى تفعيل خدمة الموقع (GPS) لتتمكن من استقبال الطلبات");
+        },
+        { enableHighAccuracy: true }
+      );
     };
 
-    const interval = setInterval(updateLoc, 60000); // Every minute
-    updateLoc();
+    const interval = setInterval(updateLocation, 30000); // 30 seconds
+    updateLocation();
     return () => clearInterval(interval);
   }, [firestore, driverInfo]);
 
@@ -132,7 +152,7 @@ export default function DriverDashboard() {
         setDriverInfo({ ...driverInfo, availability: newStatus });
         toast({
           title: newStatus === 'available' ? "أنت متاح الآن" : "أنت مشغول الآن",
-          description: newStatus === 'available' ? "ستصلك طلبات العملاء القريبة" : "تم إيقاف استقبال الطلبات مؤقتاً",
+          description: newStatus === 'available' ? "سيتم تحديث موقعك تلقائياً كل 30 ثانية" : "تم إيقاف تحديث الموقع والطلبات",
         });
       })
       .catch(async (err) => {
@@ -201,12 +221,19 @@ export default function DriverDashboard() {
       </header>
 
       <main className="flex-1 p-6 space-y-4 max-w-3xl mx-auto w-full">
+        {gpsError && driverInfo?.availability === 'available' && (
+          <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-xl flex items-center gap-3">
+            <AlertTriangle className="w-5 h-5 shrink-0" />
+            <p className="text-sm font-bold">{gpsError}</p>
+          </div>
+        )}
+
         {driverInfo?.availability === 'busy' && (
           <Card className="bg-slate-50 border-slate-200">
             <CardContent className="p-10 text-center space-y-4">
               <Activity className="w-12 h-12 text-slate-400 mx-auto" />
               <h2 className="text-xl font-bold">أنت حالياً في وضع "مشغول"</h2>
-              <p className="text-muted-foreground">قم بتفعيل الحالة من الأعلى لتبدأ باستقبال طلبات العملاء القريبة منك.</p>
+              <p className="text-muted-foreground">قم بتفعيل الحالة من الأعلى لتبدأ باستقبال طلبات العملاء القريبة منك وتحديث موقعك.</p>
             </CardContent>
           </Card>
         )}
@@ -218,7 +245,7 @@ export default function DriverDashboard() {
                 <ShoppingCart className="w-4 h-4 text-primary" />
                 الطلبات القريبة ({requests?.length || 0})
               </h2>
-              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">جاري البحث...</Badge>
+              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 animate-pulse">جاري البحث عن طلبات...</Badge>
             </div>
 
             {loadingRequests ? (

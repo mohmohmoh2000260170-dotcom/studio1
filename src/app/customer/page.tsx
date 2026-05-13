@@ -17,7 +17,8 @@ import {
   Phone, 
   MapPin, 
   Navigation,
-  Truck
+  Truck,
+  AlertCircle
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore, useCollection, useMemoFirebase, errorEmitter } from '@/firebase';
@@ -32,11 +33,13 @@ interface Driver {
   availability: string;
   lat: number;
   lng: number;
+  lastSeen?: string;
 }
 
 // Haversine formula to calculate distance in KM
 function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
-  const R = 6371; // Radius of the earth in km
+  if (!lat1 || !lon1 || !lat2 || !lon2) return 999;
+  const R = 6371;
   const dLat = deg2rad(lat2 - lat1);
   const dLon = deg2rad(lon2 - lon1);
   const a =
@@ -44,8 +47,7 @@ function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: numbe
     Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) *
     Math.sin(dLon / 2) * Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  const d = R * c; // Distance in km
-  return d;
+  return R * c;
 }
 
 function deg2rad(deg: number) {
@@ -59,13 +61,15 @@ export default function CustomerDashboard() {
   const [step, setStep] = useState<'details' | 'discovery'>('details');
   const [isRinging, setIsRinging] = useState(false);
   const [location, setLocation] = useState({ lat: 31.9454, lng: 35.9284 });
+  const [locPermission, setLocPermission] = useState<'granted' | 'denied' | 'pending'>('pending');
+  
   const [formData, setFormData] = useState({
     customerName: '',
     phoneNumber: '',
     cylinders: '1',
   });
 
-  // Get user location
+  // Get user location with permission handling
   useEffect(() => {
     if (typeof window !== 'undefined' && navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
@@ -74,8 +78,13 @@ export default function CustomerDashboard() {
             lat: position.coords.latitude,
             lng: position.coords.longitude,
           });
+          setLocPermission('granted');
         },
-        () => console.log("Using default location (Amman)")
+        (error) => {
+          console.error("Loc error", error);
+          setLocPermission('denied');
+        },
+        { enableHighAccuracy: true }
       );
     }
   }, []);
@@ -88,10 +97,11 @@ export default function CustomerDashboard() {
 
   const { data: drivers, loading: loadingDrivers } = useCollection<Driver>(approvedDriversQuery);
 
-  // Calculate distances and sort
+  // Calculate distances and sort closest first
   const nearestAgencies = useMemo(() => {
     if (!drivers) return [];
     return drivers
+      .filter(d => d.lat && d.lng) // Only show drivers with active GPS
       .map(driver => ({
         ...driver,
         distance: calculateDistance(location.lat, location.lng, driver.lat, driver.lng)
@@ -128,7 +138,7 @@ export default function CustomerDashboard() {
       .then(() => {
         toast({
           title: "تم رن الجرس! 🔔",
-          description: "تم إرسال طلبك للوكالات القريبة.",
+          description: "تم إرسال موقعك وطلبك لجميع الموزعين المتاحين.",
         });
       })
       .catch(async (err) => {
@@ -161,7 +171,7 @@ export default function CustomerDashboard() {
                 <Label htmlFor="name" className="block text-right">الاسم بالكامل</Label>
                 <Input 
                   id="name" 
-                  placeholder="خالد أحمد" 
+                  placeholder="مثال: خالد أحمد" 
                   className="text-right"
                   value={formData.customerName}
                   onChange={(e) => setFormData({...formData, customerName: e.target.value})}
@@ -225,26 +235,40 @@ export default function CustomerDashboard() {
         </div>
       </header>
 
-      <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
+      <div className="flex-1 flex flex-col md:flex-row overflow-hidden relative">
+        {locPermission === 'denied' && (
+          <div className="absolute top-4 left-4 right-4 z-50">
+            <Badge variant="destructive" className="w-full py-2 flex items-center justify-center gap-2 text-sm shadow-lg">
+              <AlertCircle className="w-4 h-4" />
+              خدمة الموقع معطلة. قد لا تكون النتائج دقيقة. يرجى تفعيل GPS.
+            </Badge>
+          </div>
+        )}
+
         {/* Sidebar List */}
-        <div className="w-full md:w-96 bg-white border-l overflow-y-auto p-4 space-y-4">
+        <div className="w-full md:w-96 bg-white border-l overflow-y-auto p-4 space-y-4 shadow-xl z-10">
           <div className="p-2">
-            <h2 className="text-sm font-bold text-muted-foreground mb-4">تم العثور على {nearestAgencies.length} وكالة معتمدة</h2>
+            <h2 className="text-sm font-bold text-muted-foreground mb-4">
+              {loadingDrivers ? "جاري البحث..." : `تم العثور على ${nearestAgencies.length} موزع نشط`}
+            </h2>
             
             {loadingDrivers ? (
               <div className="flex justify-center py-10">
                 <Loader2 className="w-6 h-6 animate-spin text-primary" />
               </div>
             ) : nearestAgencies.length === 0 ? (
-              <p className="text-center py-10 text-muted-foreground italic">لا يوجد موزعون معتمدون في منطقتك حالياً</p>
+              <div className="text-center py-10 space-y-4">
+                <Truck className="w-12 h-12 text-slate-200 mx-auto" />
+                <p className="text-muted-foreground italic text-sm">لا يوجد موزعون نشطون (Online) في منطقتك حالياً</p>
+              </div>
             ) : (
               <div className="space-y-3">
                 {nearestAgencies.map((agency) => (
-                  <Card key={agency.id} className="border-2 hover:border-primary/50 transition-colors shadow-sm cursor-pointer">
+                  <Card key={agency.id} className="border-2 hover:border-primary/50 transition-all shadow-sm cursor-pointer group">
                     <CardContent className="p-4 flex items-center justify-between flex-row-reverse">
                       <div className="flex items-center gap-3 flex-row-reverse">
-                        <div className="bg-primary/10 p-2 rounded-full">
-                          <Truck className="w-5 h-5 text-primary" />
+                        <div className="bg-primary/10 p-2 rounded-full group-hover:bg-primary group-hover:text-white transition-colors">
+                          <Truck className="w-5 h-5" />
                         </div>
                         <div className="text-right">
                           <h3 className="font-bold text-sm">{agency.name}</h3>
@@ -285,19 +309,19 @@ export default function CustomerDashboard() {
           <div className="absolute bottom-10 left-0 right-0 px-6 flex justify-center">
             <Card className="w-full max-w-sm shadow-2xl border-primary/20 bg-white/95 backdrop-blur-sm rounded-3xl overflow-hidden">
               <CardContent className="p-5 space-y-4">
-                <div className="flex justify-between items-center text-xs px-2">
-                  <span className="bg-slate-100 px-3 py-1 rounded-full">{formData.cylinders} اسطوانات</span>
-                  <span className="font-bold text-primary">{formData.customerName}</span>
+                <div className="flex justify-between items-center text-xs px-2 font-bold">
+                  <span className="bg-primary/10 text-primary px-3 py-1 rounded-full">{formData.cylinders} اسطوانات</span>
+                  <span className="text-slate-800">{formData.customerName}</span>
                 </div>
                 <Button 
                   onClick={handleRingBell} 
                   disabled={isRinging}
-                  className="w-full h-16 text-xl gap-3 rounded-2xl shadow-lg shadow-primary/30 transition-transform active:scale-95 bg-primary"
+                  className="w-full h-16 text-xl gap-3 rounded-2xl shadow-lg shadow-primary/30 transition-transform active:scale-95 bg-primary hover:bg-primary/90"
                 >
                   {isRinging ? <Loader2 className="animate-spin" /> : <Bell className="w-6 h-6" />}
                   رن الجرس للجميع 🔔
                 </Button>
-                <p className="text-[10px] text-center text-muted-foreground">سيتم إرسال موقعك للموزعين المتاحين القريبين منك</p>
+                <p className="text-[10px] text-center text-muted-foreground font-medium">سيتم إرسال موقعك لجميع الموزعين المتاحين القريبين منك</p>
               </CardContent>
             </Card>
           </div>
