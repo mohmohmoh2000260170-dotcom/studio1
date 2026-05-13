@@ -27,9 +27,11 @@ export function GoogleMapsView({ markers }: { markers: MarkerProps[] }) {
 
   useEffect(() => {
     setMounted(true);
-    import('leaflet').then((leaflet) => {
-      setL(leaflet);
-    });
+    if (typeof window !== 'undefined') {
+      import('leaflet').then((leaflet) => {
+        setL(leaflet);
+      });
+    }
   }, []);
 
   if (!mounted || !L) return (
@@ -99,7 +101,10 @@ export function GoogleMapsView({ markers }: { markers: MarkerProps[] }) {
           onClick={() => {
             if (navigator.geolocation) {
               navigator.geolocation.getCurrentPosition((pos) => {
-                window.location.href = `?lat=${pos.coords.latitude}&lng=${pos.coords.longitude}`;
+                const url = new URL(window.location.href);
+                url.searchParams.set('lat', pos.coords.latitude.toString());
+                url.searchParams.set('lng', pos.coords.longitude.toString());
+                window.location.href = url.toString();
               });
             }
           }}
