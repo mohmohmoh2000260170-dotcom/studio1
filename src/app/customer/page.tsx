@@ -28,6 +28,7 @@ import { collection, addDoc, serverTimestamp, query, where, doc, setDoc, getDocs
 import { FirestorePermissionError } from '@/firebase/errors';
 import { getDeviceId } from '@/lib/device';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 interface Driver {
   id: string;
@@ -64,6 +65,7 @@ function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: numbe
 export default function CustomerDashboard() {
   const { toast } = useToast();
   const firestore = useFirestore();
+  const router = useRouter();
   
   const [step, setStep] = useState<'details' | 'discovery'>('details');
   const [isRinging, setIsRinging] = useState(false);
@@ -111,9 +113,16 @@ export default function CustomerDashboard() {
     return doc(firestore, "customers", customerId);
   }, [firestore, customerId]);
 
-  const { data: profile } = useDoc<CustomerProfile>(customerDocRef);
+  const { data: profile, loading: loadingProfile } = useDoc<CustomerProfile>(customerDocRef);
 
+  // CRITICAL: Real-time deletion handling
   useEffect(() => {
+    // If we have a local customer ID but the profile document is missing from Firestore, force logout
+    if (customerId && !loadingProfile && !profile) {
+      handleLogout();
+    }
+
+    // Single Device Policy
     if (profile && profile.sessionId && customerId) {
       const localSessionId = localStorage.getItem('sessionId');
       if (localSessionId && profile.sessionId !== localSessionId) {
@@ -125,7 +134,7 @@ export default function CustomerDashboard() {
         handleLogout();
       }
     }
-  }, [profile, customerId]);
+  }, [profile, customerId, loadingProfile]);
 
   const approvedDriversQuery = useMemoFirebase(() => {
     if (!firestore) return null;
@@ -192,7 +201,7 @@ export default function CustomerDashboard() {
 
         // Update session
         const newSessionId = Math.random().toString(36).substring(2, 15);
-        updateDoc(doc(firestore, "customers", targetId), { sessionId: newSessionId });
+        await updateDoc(doc(firestore, "customers", targetId), { sessionId: newSessionId });
         localStorage.setItem('sessionId', newSessionId);
 
       } else {
@@ -275,6 +284,7 @@ export default function CustomerDashboard() {
     localStorage.clear();
     setStep('details');
     setCustomerId(null);
+    router.push('/');
   };
 
   if (step === 'details') {
@@ -340,7 +350,7 @@ export default function CustomerDashboard() {
               <Button type="submit" disabled={loadingRegistration} className="w-full h-14 text-lg font-bold mt-4 shadow-lg active:scale-95 transition-all">
                 {loadingRegistration ? <Loader2 className="animate-spin" /> : "دخول مباشر"}
               </Button>
-              <Link href="/" className="block">
+              <Link href="/" className="block text-center mt-2">
                 <Button variant="ghost" className="w-full">رجوع للرئيسية</Button>
               </Link>
             </form>

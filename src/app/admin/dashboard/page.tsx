@@ -23,10 +23,11 @@ import {
   Search,
   Trash2,
   AlertTriangle,
-  Loader2
+  Loader2,
+  Database
 } from 'lucide-react';
 import { useFirestore, useCollection, useMemoFirebase, errorEmitter } from '@/firebase';
-import { collection, query, where, doc, updateDoc, orderBy, getDocs, deleteDoc, writeBatch } from 'firebase/firestore';
+import { collection, query, where, doc, updateDoc, orderBy, getDocs, writeBatch } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -147,8 +148,8 @@ export default function AdminDashboard() {
       }
 
       toast({
-        title: "تم تصفير النظام",
-        description: "تم حذف جميع السجلات بنجاح. سيتم تسجيل خروجك الآن.",
+        title: "تم تصفير النظام بنجاح",
+        description: "تم حذف جميع السائقين، العملاء، والطلبات. سيتم إعادة توجيهك الآن.",
       });
       
       localStorage.clear();
@@ -158,7 +159,7 @@ export default function AdminDashboard() {
       toast({
         variant: "destructive",
         title: "فشل التصفير",
-        description: "حدث خطأ أثناء محاولة حذف البيانات.",
+        description: "حدث خطأ غير متوقع أثناء محاولة مسح البيانات.",
       });
     } finally {
       setIsResetting(false);
@@ -182,22 +183,22 @@ export default function AdminDashboard() {
         <div className="flex items-center gap-2">
            <AlertDialog>
             <AlertDialogTrigger asChild>
-              <Button variant="outline" size="sm" className="text-red-500 border-red-200 hover:bg-red-50">
-                <Trash2 className="w-4 h-4 ml-2" />
-                تصفير البيانات
+              <Button variant="outline" size="sm" className="text-red-600 border-red-200 hover:bg-red-50 font-bold">
+                <Database className="w-4 h-4 ml-2" />
+                تصفير النظام بالكامل
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent dir="rtl">
               <AlertDialogHeader>
-                <AlertDialogTitle className="text-right">هل أنت متأكد تماماً؟</AlertDialogTitle>
+                <AlertDialogTitle className="text-right">تحذير أمني: تصفير شامل!</AlertDialogTitle>
                 <AlertDialogDescription className="text-right">
-                  سيؤدي هذا الإجراء إلى حذف جميع السائقين والعملاء والطلبات بشكل نهائي من قاعدة البيانات. لا يمكن التراجع عن هذا الإجراء.
+                  سيؤدي هذا الإجراء إلى حذف جميع السائقين والعملاء وجميع بيانات تسجيل الدخول ورموز PIN والطلبات بشكل نهائي. لن يتمكن أي مستخدم من الدخول بجهازه القديم وسيتعين على الجميع التسجيل من جديد.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter className="flex-row-reverse gap-2">
                 <AlertDialogCancel className="ml-2">إلغاء</AlertDialogCancel>
                 <AlertDialogAction onClick={handleResetSystem} className="bg-red-600 hover:bg-red-700">
-                  {isResetting ? <Loader2 className="w-4 h-4 animate-spin" /> : "نعم، احذف كل شيء"}
+                  {isResetting ? <Loader2 className="w-4 h-4 animate-spin" /> : "تأكيد الحذف الشامل"}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
@@ -211,34 +212,34 @@ export default function AdminDashboard() {
 
       <main className="flex-1 p-6 max-w-6xl mx-auto w-full">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <Card className="bg-primary text-white overflow-hidden relative">
+          <Card className="bg-primary text-white overflow-hidden relative border-none shadow-lg">
             <CardContent className="p-6">
               <div className="flex justify-between items-center">
                 <div>
-                  <p className="text-sm opacity-80 mb-1">الشركات المعلقة</p>
-                  <h3 className="text-3xl font-black">{(drivers || []).length}</h3>
+                  <p className="text-sm opacity-80 mb-1">وكالات بانتظار الموافقة</p>
+                  <h3 className="text-3xl font-black">{drivers?.length || 0}</h3>
                 </div>
                 <Truck className="w-10 h-10 opacity-20" />
               </div>
             </CardContent>
           </Card>
-          <Card className="bg-slate-800 text-white overflow-hidden relative">
+          <Card className="bg-slate-800 text-white overflow-hidden relative border-none shadow-lg">
             <CardContent className="p-6">
               <div className="flex justify-between items-center">
                 <div>
-                  <p className="text-sm opacity-80 mb-1">الطلبات النشطة</p>
-                  <h3 className="text-3xl font-black">{(requests || []).length}</h3>
+                  <p className="text-sm opacity-80 mb-1">طلبات جرس نشطة</p>
+                  <h3 className="text-3xl font-black">{requests?.length || 0}</h3>
                 </div>
                 <Bell className="w-10 h-10 opacity-20" />
               </div>
             </CardContent>
           </Card>
-          <Card className="bg-white border-2 text-slate-800 overflow-hidden relative">
+          <Card className="bg-white border-2 text-slate-800 overflow-hidden relative shadow-md">
             <CardContent className="p-6">
               <div className="flex justify-between items-center">
                 <div>
-                  <p className="text-sm text-slate-500 mb-1">إجمالي العملاء</p>
-                  <h3 className="text-3xl font-black">{(customers || []).length}</h3>
+                  <p className="text-sm text-slate-500 mb-1">إجمالي العملاء المسجلين</p>
+                  <h3 className="text-3xl font-black">{customers?.length || 0}</h3>
                 </div>
                 <Users className="w-10 h-10 text-primary opacity-20" />
               </div>
@@ -250,29 +251,29 @@ export default function AdminDashboard() {
           <TabsList className="grid w-full grid-cols-3 h-14 bg-white border p-1 rounded-xl shadow-sm">
             <TabsTrigger value="drivers" className="rounded-lg font-bold data-[state=active]:bg-primary data-[state=active]:text-white">
               <Truck className="w-4 h-4 ml-2" />
-              الشركات المعلقة
+              طلبات الانضمام
             </TabsTrigger>
             <TabsTrigger value="requests" className="rounded-lg font-bold data-[state=active]:bg-primary data-[state=active]:text-white">
               <Bell className="w-4 h-4 ml-2" />
-              الطلبات المفتوحة
+              الأجراس النشطة
             </TabsTrigger>
             <TabsTrigger value="customers" className="rounded-lg font-bold data-[state=active]:bg-primary data-[state=active]:text-white">
               <Users className="w-4 h-4 ml-2" />
-              إدارة العملاء
+              قاعدة العملاء
             </TabsTrigger>
           </TabsList>
 
           <TabsContent value="drivers" className="space-y-4">
             <div className="flex justify-between items-center mb-2">
-              <h2 className="text-xl font-black text-slate-800">طلبات انضمام جديدة</h2>
-              <Badge variant="outline">{drivers?.length || 0} طلب</Badge>
+              <h2 className="text-xl font-black text-slate-800">شركات غاز جديدة</h2>
+              <Badge variant="outline" className="font-bold">{drivers?.length || 0} طلب</Badge>
             </div>
             {loadingDrivers ? (
               <div className="flex justify-center py-20"><Loader2 className="animate-spin text-primary" /></div>
             ) : drivers?.length === 0 ? (
-              <Card className="p-12 text-center border-dashed border-2">
+              <Card className="p-12 text-center border-dashed border-2 bg-slate-50/50">
                 <Truck className="w-12 h-12 text-slate-200 mx-auto mb-4" />
-                <p className="text-muted-foreground">لا يوجد طلبات انضمام معلقة حالياً</p>
+                <p className="text-muted-foreground font-medium">لا توجد طلبات انضمام معلقة</p>
               </Card>
             ) : (
               <div className="grid gap-4">
@@ -280,7 +281,7 @@ export default function AdminDashboard() {
                   <Card key={driver.id} className="overflow-hidden border-2 shadow-sm transition-all hover:border-primary/20">
                     <CardContent className="p-6 flex flex-col md:flex-row justify-between items-center gap-4 text-right">
                       <div className="flex gap-2">
-                        <Button onClick={() => handleUpdateStatus(driver.id, 'approved')} className="bg-green-600 hover:bg-green-700 font-bold px-8">قبول</Button>
+                        <Button onClick={() => handleUpdateStatus(driver.id, 'approved')} className="bg-green-600 hover:bg-green-700 font-bold px-8">موافقة</Button>
                         <Button onClick={() => handleUpdateStatus(driver.id, 'rejected')} variant="outline" className="text-red-600 border-red-200 hover:bg-red-50">رفض</Button>
                       </div>
                       <div className="flex-1 space-y-2">
@@ -298,38 +299,40 @@ export default function AdminDashboard() {
           </TabsContent>
 
           <TabsContent value="requests" className="space-y-4">
-            <h2 className="text-xl font-black text-slate-800 mb-4">الطلبات النشطة الآن</h2>
+            <h2 className="text-xl font-black text-slate-800 mb-4">أجراس تطلب الغاز الآن</h2>
             {loadingRequests ? (
               <div className="flex justify-center py-20"><Loader2 className="animate-spin text-primary" /></div>
             ) : requests?.length === 0 ? (
-              <Card className="p-12 text-center border-dashed border-2">
+              <Card className="p-12 text-center border-dashed border-2 bg-slate-50/50">
                 <Bell className="w-12 h-12 text-slate-200 mx-auto mb-4" />
-                <p className="text-muted-foreground">لا توجد طلبات جرس نشطة في هذه اللحظة</p>
+                <p className="text-muted-foreground font-medium">الهدوء يعم المكان.. لا طلبات حالياً</p>
               </Card>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {requests?.map((req) => (
-                  <Card key={req.id} className="p-6 text-right border-2 border-primary/10 relative overflow-hidden">
-                    <div className="absolute top-0 right-0 w-1 h-full bg-primary" />
+                  <Card key={req.id} className="p-6 text-right border-2 border-primary/10 relative overflow-hidden shadow-sm">
+                    <div className="absolute top-0 right-0 w-1.5 h-full bg-primary" />
                     <div className="flex justify-between items-start mb-6">
-                      <Badge className="bg-blue-100 text-blue-700 animate-pulse">قيد الانتظار</Badge>
+                      <Badge className="bg-blue-100 text-blue-700 animate-pulse border-none">طلب نشط</Badge>
                       <div className="text-right">
                         <h3 className="font-black text-lg">{req.customerName}</h3>
-                        <p className="text-xs text-slate-400">{req.timestamp?.toDate()?.toLocaleTimeString('ar-JO')}</p>
+                        <p className="text-xs text-slate-400 flex items-center justify-end gap-1">
+                          {req.timestamp?.toDate()?.toLocaleTimeString('ar-JO')} <Clock className="w-3 h-3" />
+                        </p>
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-4 text-sm mb-4">
-                      <div className="bg-slate-50 p-3 rounded-xl">
-                        <p className="text-[10px] text-slate-400 mb-1">الكمية المطلوبة</p>
+                      <div className="bg-slate-50 p-3 rounded-xl border">
+                        <p className="text-[10px] text-slate-400 mb-1">الكمية</p>
                         <p className="font-black text-primary">{req.cylinders} أسطوانات</p>
                       </div>
-                      <div className="bg-slate-50 p-3 rounded-xl">
-                        <p className="text-[10px] text-slate-400 mb-1">رقم التواصل</p>
+                      <div className="bg-slate-50 p-3 rounded-xl border">
+                        <p className="text-[10px] text-slate-400 mb-1">رقم الهاتف</p>
                         <p className="font-bold">{req.phoneNumber}</p>
                       </div>
                     </div>
-                    <Button variant="outline" className="w-full text-xs gap-2" onClick={() => window.open(`https://www.google.com/maps?q=${req.lat},${req.lng}`)}>
-                      عرض الموقع على الخريطة <MapPin className="w-3 h-3" />
+                    <Button variant="outline" className="w-full text-xs gap-2 font-bold" onClick={() => window.open(`https://www.google.com/maps?q=${req.lat},${req.lng}`)}>
+                      تحديد الموقع الجغرافي <MapPin className="w-3 h-3" />
                     </Button>
                   </Card>
                 ))}
@@ -340,18 +343,18 @@ export default function AdminDashboard() {
           <TabsContent value="customers" className="space-y-4">
             <div className="mb-6">
               <h2 className="text-xl font-black text-slate-800">إدارة سجل العملاء</h2>
-              <p className="text-sm text-slate-500">متابعة جميع المستخدمين المسجلين في النظام</p>
+              <p className="text-sm text-slate-500">متابعة جميع المستهلكين المسجلين في نظام غاز دليفري</p>
             </div>
             
             {loadingCustomers ? (
               <div className="flex justify-center py-20"><Loader2 className="animate-spin text-primary" /></div>
             ) : !customers || customers.length === 0 ? (
-              <Card className="p-12 text-center border-dashed border-2">
+              <Card className="p-12 text-center border-dashed border-2 bg-slate-50/50">
                 <Users className="w-12 h-12 text-slate-200 mx-auto mb-4" />
-                <p className="text-muted-foreground">لا يوجد عملاء مسجلون بعد</p>
+                <p className="text-muted-foreground font-medium">لا توجد سجلات لعملاء مسجلين بعد</p>
               </Card>
             ) : (
-              <div className="bg-white rounded-2xl border-2 shadow-sm overflow-hidden">
+              <div className="bg-white rounded-2xl border-2 shadow-md overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full text-right">
                     <thead>
@@ -371,12 +374,12 @@ export default function AdminDashboard() {
                               <span className="font-bold text-slate-800">{customer.name}</span>
                             </div>
                           </td>
-                          <td className="px-6 py-4 text-slate-600 font-medium">{customer.phone}</td>
+                          <td className="px-6 py-4 text-slate-600 font-bold">{customer.phone}</td>
                           <td className="px-6 py-4 text-slate-400 text-xs">
                             {customer.timestamp?.toDate()?.toLocaleDateString('ar-JO', { year: 'numeric', month: 'long', day: 'numeric' })}
                           </td>
                           <td className="px-6 py-4">
-                            <Badge className="bg-green-50 text-green-600 border-green-100 hover:bg-green-50">نشط</Badge>
+                            <Badge className="bg-green-50 text-green-600 border-green-100 hover:bg-green-100 transition-colors">مستخدم نشط</Badge>
                           </td>
                         </tr>
                       ))}

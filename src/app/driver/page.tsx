@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -73,8 +74,8 @@ export default function DriverDashboard() {
           const docSnap = snap.docs[0];
           setDriverData({ id: docSnap.id, ...docSnap.data() } as DriverInfo);
         } else {
-          localStorage.removeItem('driverId');
-          router.push('/driver/login');
+          // Record deleted
+          handleLogout();
         }
       } catch (e) { console.error(e); } finally { setLoadingInfo(false); }
     };
@@ -86,10 +87,16 @@ export default function DriverDashboard() {
     return doc(firestore, "drivers", driverData.id);
   }, [firestore, driverData?.id]);
 
-  const { data: realTimeDriver } = useDoc<DriverInfo>(driverDocRef);
+  const { data: realTimeDriver, loading: loadingRealTime } = useDoc<DriverInfo>(driverDocRef);
 
-  // Single Device Policy
+  // CRITICAL: Single Device and Deletion Policy
   useEffect(() => {
+    // If document was deleted while online
+    if (driverId && !loadingRealTime && !realTimeDriver) {
+      handleLogout();
+      return;
+    }
+
     if (realTimeDriver && realTimeDriver.sessionId) {
       const localSessionId = localStorage.getItem('sessionId');
       if (localSessionId && realTimeDriver.sessionId !== localSessionId) {
@@ -101,7 +108,7 @@ export default function DriverDashboard() {
         handleLogout();
       }
     }
-  }, [realTimeDriver]);
+  }, [realTimeDriver, loadingRealTime, driverId]);
 
   useEffect(() => {
     if (!firestore || !realTimeDriver || realTimeDriver.status !== 'approved' || realTimeDriver.availability !== 'available') return;
@@ -139,16 +146,16 @@ export default function DriverDashboard() {
     router.push('/driver/login');
   };
 
-  if (loadingInfo) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="animate-spin" /></div>;
+  if (loadingInfo) return <div className="min-h-screen flex items-center justify-center bg-[#FBF3EE]"><Loader2 className="animate-spin text-primary" /></div>;
 
   if (realTimeDriver?.status === 'pending') {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center" dir="rtl">
+      <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center bg-[#FBF3EE]" dir="rtl">
         <div className="bg-white p-8 rounded-3xl shadow-xl max-w-md space-y-6">
           <Clock className="w-16 h-16 text-amber-600 mx-auto" />
-          <h1 className="text-2xl font-bold">بانتظار موافقة الإدارة</h1>
-          <p className="text-muted-foreground">حسابك قيد المراجعة حالياً. سيتم تفعيله قريباً.</p>
-          <Button onClick={handleLogout} variant="outline" className="w-full">خروج</Button>
+          <h1 className="text-2xl font-bold text-slate-900">بانتظار موافقة الإدارة</h1>
+          <p className="text-muted-foreground">حسابك قيد المراجعة حالياً. سيتم تفعيله من قبل المشرف قريباً.</p>
+          <Button onClick={handleLogout} variant="outline" className="w-full h-12">خروج</Button>
         </div>
       </div>
     );
@@ -158,46 +165,76 @@ export default function DriverDashboard() {
     <div className="min-h-screen bg-[#FBF3EE] flex flex-col" dir="rtl">
       <header className="bg-white border-b px-6 py-4 flex items-center justify-between shadow-sm sticky top-0 z-10">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={handleLogout}><LogOut className="w-5 h-5" /></Button>
+          <Button variant="ghost" size="icon" onClick={handleLogout} className="rounded-full"><LogOut className="w-5 h-5" /></Button>
           <h1 className="text-lg font-bold text-primary">لوحة السائق</h1>
         </div>
         <div className="flex items-center gap-4">
-          <Switch checked={realTimeDriver?.availability === 'available'} onCheckedChange={toggleAvailability} />
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-slate-500">{realTimeDriver?.availability === 'available' ? 'متاح' : 'مشغول'}</span>
+            <Switch checked={realTimeDriver?.availability === 'available'} onCheckedChange={toggleAvailability} />
+          </div>
         </div>
       </header>
 
       <main className="flex-1 p-6 space-y-4 max-w-3xl mx-auto w-full">
-        {gpsError && realTimeDriver?.availability === 'available' && <div className="bg-red-50 p-4 rounded-xl text-red-700 font-bold">{gpsError}</div>}
+        {gpsError && realTimeDriver?.availability === 'available' && <div className="bg-red-50 p-4 rounded-xl text-red-700 font-bold flex items-center gap-3"><AlertTriangle className="w-5 h-5" /> {gpsError}</div>}
+        
         {realTimeDriver?.availability === 'busy' && (
-          <div className="p-10 text-center space-y-4 bg-white rounded-3xl border">
+          <div className="p-10 text-center space-y-4 bg-white rounded-3xl border shadow-sm">
             <Activity className="w-12 h-12 text-slate-400 mx-auto" />
-            <h2 className="text-xl font-bold">أنت حالياً في وضع "مشغول"</h2>
+            <h2 className="text-xl font-bold text-slate-800">أنت حالياً في وضع "مشغول"</h2>
+            <p className="text-sm text-slate-500">لن تظهر للعملاء على الخريطة ولن تستقبل طلبات جديدة حتى تفعل وضع التوافر.</p>
           </div>
         )}
+
         {realTimeDriver?.availability === 'available' && (
-          <div className="grid gap-4">
-            {requests?.map((req) => (
-              <Card key={req.id} className="border-2 shadow-md bg-white p-5">
-                <div className="flex justify-between items-center mb-4 border-b pb-3">
-                  <Badge className="bg-primary">طلب جديد</Badge>
-                  <h3 className="font-bold">{req.customerName}</h3>
-                </div>
-                <div className="grid grid-cols-2 gap-4 mb-4">
-                  <div className="bg-primary/5 p-3 rounded-xl border flex items-center gap-3">
-                    <ShoppingCart className="text-primary" />
-                    <div className="text-right"><p className="text-[10px]">الكمية</p><p className="font-bold">{req.cylinders} أسطوانات</p></div>
-                  </div>
-                  <div className="bg-slate-50 p-3 rounded-xl border flex items-center gap-3">
-                    <Phone className="text-slate-600" />
-                    <div className="text-right"><p className="text-[10px]">الهاتف</p><p className="font-bold">{req.phoneNumber}</p></div>
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <Button variant="outline" className="flex-1" onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${req.lat},${req.lng}`, '_blank')}>موقع العميل</Button>
-                  <Link href={`tel:${req.phoneNumber}`} className="flex-1"><Button className="w-full bg-primary font-bold">اتصال الآن</Button></Link>
-                </div>
+          <div className="space-y-4">
+            <div className="flex justify-between items-center mb-2">
+              <h2 className="text-lg font-black text-slate-800">الطلبات الواردة</h2>
+              <Badge variant="secondary" className="bg-slate-100">{requests?.length || 0} طلب</Badge>
+            </div>
+            {requests?.length === 0 && (
+              <Card className="p-12 text-center border-dashed border-2 bg-white/50">
+                <Flame className="w-10 h-10 text-slate-200 mx-auto mb-4" />
+                <p className="text-muted-foreground">لا توجد طلبات في منطقتك حالياً</p>
               </Card>
-            ))}
+            )}
+            <div className="grid gap-4">
+              {requests?.map((req) => (
+                <Card key={req.id} className="border-2 shadow-md bg-white p-5 transition-all hover:border-primary/30">
+                  <div className="flex justify-between items-center mb-4 border-b pb-3">
+                    <Badge className="bg-primary border-none">طلب جديد</Badge>
+                    <h3 className="font-bold text-lg">{req.customerName}</h3>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 mb-4">
+                    <div className="bg-primary/5 p-3 rounded-xl border border-primary/10 flex items-center gap-3">
+                      <div className="bg-primary/10 p-2 rounded-lg"><ShoppingCart className="w-4 h-4 text-primary" /></div>
+                      <div className="text-right">
+                        <p className="text-[10px] text-slate-500">الكمية</p>
+                        <p className="font-black text-primary">{req.cylinders} أسطوانات</p>
+                      </div>
+                    </div>
+                    <div className="bg-slate-50 p-3 rounded-xl border flex items-center gap-3">
+                      <div className="bg-slate-200 p-2 rounded-lg"><Phone className="w-4 h-4 text-slate-600" /></div>
+                      <div className="text-right">
+                        <p className="text-[10px] text-slate-500">رقم الهاتف</p>
+                        <p className="font-bold text-slate-800">{req.phoneNumber}</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex gap-3">
+                    <Button variant="outline" className="flex-1 h-12 font-bold" onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${req.lat},${req.lng}`, '_blank')}>
+                      <MapPin className="w-4 h-4 ml-2" /> موقع العميل
+                    </Button>
+                    <Link href={`tel:${req.phoneNumber}`} className="flex-1">
+                      <Button className="w-full h-12 bg-primary font-black text-lg">
+                        <Phone className="w-4 h-4 ml-2" /> اتصال مباشر
+                      </Button>
+                    </Link>
+                  </div>
+                </Card>
+              ))}
+            </div>
           </div>
         )}
       </main>
