@@ -1,0 +1,46 @@
+
+{
+  "entities": {
+    "Driver": {
+      "title": "Driver",
+      "description": "Information about a gas delivery driver or company.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "The driver's name or company name." },
+        "phone": { "type": "string", "description": "Contact phone number." },
+        "companyLicense": { "type": "string", "description": "The official business license number." },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"], "description": "Current registration status." },
+        "timestamp": { "type": "string", "format": "date-time", "description": "When the registration was created." }
+      },
+      "required": ["name", "phone", "companyLicense", "status"]
+    },
+    "Request": {
+      "title": "Delivery Request",
+      "description": "A customer request for gas cylinder delivery.",
+      "type": "object",
+      "properties": {
+        "customerName": { "type": "string" },
+        "phoneNumber": { "type": "string" },
+        "cylinders": { "type": "string" },
+        "lat": { "type": "number" },
+        "lng": { "type": "number" },
+        "status": { "type": "string", "enum": ["pending", "completed"] },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["customerName", "phoneNumber", "cylinders", "lat", "lng", "status"]
+    }
+  },
+  "auth": {
+    "providers": ["password"]
+  },
+  "firestore": {
+    "/drivers/{driverId}": {
+      "schema": "Driver",
+      "description": "Collection of driver registrations."
+    },
+    "/requests/{requestId}": {
+      "schema": "Request",
+      "description": "Collection of active customer delivery requests."
+    }
+  }
+}
