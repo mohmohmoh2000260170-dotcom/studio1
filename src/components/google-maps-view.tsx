@@ -34,7 +34,7 @@ export function GoogleMapsView({ markers }: { markers: MarkerProps[] }) {
 
   if (!mounted || !L) return (
     <div className="w-full h-full bg-slate-100 animate-pulse flex items-center justify-center font-bold">
-      جاري تحميل الخريطة المجانية...
+      جاري تحميل الخريطة...
     </div>
   );
 
