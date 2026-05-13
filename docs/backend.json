@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "Driver": {
@@ -15,9 +16,11 @@
         "lastSeen": { "type": "string", "format": "date-time" },
         "uid": { "type": "string" },
         "sessionId": { "type": "string", "description": "Unique session ID to enforce single device login." },
+        "deviceId": { "type": "string", "description": "The unique ID of the device registered with this account." },
+        "pin": { "type": "string", "description": "4-digit security PIN." },
         "timestamp": { "type": "string", "format": "date-time" }
       },
-      "required": ["name", "phone", "status", "availability", "uid"]
+      "required": ["name", "phone", "status", "availability", "uid", "deviceId", "pin"]
     },
     "Customer": {
       "title": "Customer",
@@ -28,9 +31,11 @@
         "phone": { "type": "string" },
         "uid": { "type": "string" },
         "sessionId": { "type": "string", "description": "Unique session ID to enforce single device login." },
+        "deviceId": { "type": "string", "description": "The unique ID of the device registered with this account." },
+        "pin": { "type": "string", "description": "4-digit security PIN." },
         "timestamp": { "type": "string", "format": "date-time" }
       },
-      "required": ["name", "phone", "uid"]
+      "required": ["name", "phone", "uid", "deviceId", "pin"]
     },
     "Request": {
       "title": "Delivery Request",

@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -17,12 +18,15 @@ import {
   Truck,
   User,
   Plus,
-  Minus
+  Minus,
+  Lock,
+  ShieldAlert
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore, useCollection, useMemoFirebase, errorEmitter, useDoc } from '@/firebase';
-import { collection, addDoc, serverTimestamp, query, where, doc, setDoc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, query, where, doc, setDoc, getDocs, updateDoc } from 'firebase/firestore';
 import { FirestorePermissionError } from '@/firebase/errors';
+import { getDeviceId } from '@/lib/device';
 import Link from 'next/link';
 
 interface Driver {
@@ -37,6 +41,8 @@ interface Driver {
 interface CustomerProfile {
   uid: string;
   sessionId: string;
+  deviceId: string;
+  pin: string;
 }
 
 const PRICE_PER_CYLINDER = 7;
@@ -63,10 +69,12 @@ export default function CustomerDashboard() {
   const [loadingRegistration, setLoadingRegistration] = useState(false);
   const [location, setLocation] = useState({ lat: 31.9454, lng: 35.9284 });
   const [customerId, setCustomerId] = useState<string | null>(null);
+  const [securityAlert, setSecurityAlert] = useState<string | null>(null);
   
   const [formData, setFormData] = useState({
     customerName: '',
     phoneNumber: '',
+    pin: '',
     cylinders: 1,
   });
 
@@ -139,41 +147,85 @@ export default function CustomerDashboard() {
   const handleDetailsSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (loadingRegistration) return;
+    if (!formData.phoneNumber || formData.pin.length !== 4) {
+      toast({ variant: "destructive", title: "خطأ", description: "يرجى إدخال الهاتف ورمز PIN المكون من 4 أرقام" });
+      return;
+    }
     
     setLoadingRegistration(true);
+    setSecurityAlert(null);
 
     try {
-      const uid = 'cust_' + Math.random().toString(36).substring(2, 11);
-      const newSessionId = Math.random().toString(36).substring(2, 15);
+      const currentDeviceId = getDeviceId();
       
-      // Save locally FIRST for instant feel
-      localStorage.setItem('customerId', uid);
-      localStorage.setItem('customerName', formData.customerName);
-      localStorage.setItem('customerPhone', formData.phoneNumber);
-      localStorage.setItem('sessionId', newSessionId);
+      // Check if user already exists
+      const q = query(collection(firestore, "customers"), where("phone", "==", formData.phoneNumber));
+      const snap = await getDocs(q);
 
-      if (firestore) {
+      if (!snap.empty) {
+        // LOGIN FLOW
+        const customerDoc = snap.docs[0];
+        const data = customerDoc.data();
+
+        // Check PIN
+        if (data.pin !== formData.pin) {
+          toast({ variant: "destructive", title: "خطأ", description: "رمز PIN غير صحيح" });
+          setLoadingRegistration(false);
+          return;
+        }
+
+        // Check Device Binding
+        if (data.deviceId && data.deviceId !== currentDeviceId) {
+          setSecurityAlert('تنبيه أمني: هذا الحساب مرتبط بجهاز آخر. لا يمكن الدخول من هذا الجهاز.');
+          setLoadingRegistration(false);
+          return;
+        }
+
+        const newSessionId = Math.random().toString(36).substring(2, 15);
+        await updateDoc(doc(firestore, "customers", customerDoc.id), { sessionId: newSessionId });
+
+        localStorage.setItem('customerId', customerDoc.id);
+        localStorage.setItem('customerName', data.name);
+        localStorage.setItem('customerPhone', data.phone);
+        localStorage.setItem('sessionId', newSessionId);
+        
+        setCustomerId(customerDoc.id);
+        setStep('discovery');
+        toast({ title: "مرحباً بعودتك", description: `أهلاً بك، ${data.name}` });
+      } else {
+        // SIGNUP FLOW
+        if (!formData.customerName) {
+          toast({ variant: "destructive", title: "خطأ", description: "يرجى إدخال اسمك للتسجيل لأول مرة" });
+          setLoadingRegistration(false);
+          return;
+        }
+
+        const uid = 'cust_' + Math.random().toString(36).substring(2, 11);
+        const newSessionId = Math.random().toString(36).substring(2, 15);
+        
         const customerRef = doc(firestore, "customers", uid);
         const customerData = {
           name: formData.customerName,
           phone: formData.phoneNumber,
+          pin: formData.pin,
+          deviceId: currentDeviceId,
           uid: uid,
           sessionId: newSessionId,
           timestamp: serverTimestamp(),
         };
 
-        // Fire and forget (or rather, don't block the UI navigation)
-        setDoc(customerRef, customerData).catch(err => {
-          console.error("Firestore Write Error:", err);
-        });
+        await setDoc(customerRef, customerData);
+
+        localStorage.setItem('customerId', uid);
+        localStorage.setItem('customerName', formData.customerName);
+        localStorage.setItem('customerPhone', formData.phoneNumber);
+        localStorage.setItem('sessionId', newSessionId);
+
+        setCustomerId(uid);
+        setStep('discovery');
+        toast({ title: "تم التسجيل", description: "أهلاً بك في غاز دليفري" });
       }
-      
-      // Force navigation/step change immediately
-      setCustomerId(uid);
-      setStep('discovery');
       setLoadingRegistration(false);
-      
-      toast({ title: "أهلاً بك", description: "تم الدخول بنجاح." });
     } catch (err) {
       setLoadingRegistration(false);
       console.error("Submit Error:", err);
@@ -224,32 +276,60 @@ export default function CustomerDashboard() {
           <CardHeader className="text-center">
             <div className="mx-auto bg-primary/10 p-4 rounded-2xl w-fit mb-2"><User className="w-10 h-10 text-primary" /></div>
             <CardTitle className="text-2xl font-bold">دخول العملاء</CardTitle>
-            <CardDescription>أدخل معلوماتك للبدء في طلب الغاز فوراً</CardDescription>
+            <CardDescription>أدخل رقم هاتفك ورمز PIN للمتابعة</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleDetailsSubmit} className="space-y-4">
               <div className="space-y-2">
+                <Label className="block text-right">رقم الهاتف</Label>
+                <div className="relative">
+                  <Phone className="absolute right-3 top-3 w-4 h-4 text-muted-foreground" />
+                  <Input 
+                    type="tel" 
+                    placeholder="07XXXXXXXX" 
+                    value={formData.phoneNumber} 
+                    onChange={(e) => setFormData({...formData, phoneNumber: e.target.value})} 
+                    required 
+                    className="pr-10 text-right"
+                  />
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <Label className="block text-right">رمز PIN (4 أرقام)</Label>
+                <div className="relative">
+                  <Lock className="absolute right-3 top-3 w-4 h-4 text-muted-foreground" />
+                  <Input 
+                    type="password" 
+                    maxLength={4}
+                    placeholder="****" 
+                    value={formData.pin} 
+                    onChange={(e) => setFormData({...formData, pin: e.target.value.replace(/\D/g, '')})} 
+                    required 
+                    className="pr-10 text-right"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2 border-t pt-4 mt-4">
+                <p className="text-[10px] text-muted-foreground mb-2">للتسجيل لأول مرة، يرجى كتابة الاسم:</p>
                 <Label className="block text-right">الاسم بالكامل</Label>
                 <Input 
                   placeholder="مثال: خالد أحمد" 
                   value={formData.customerName} 
                   onChange={(e) => setFormData({...formData, customerName: e.target.value})} 
-                  required 
                   className="text-right"
                 />
               </div>
-              <div className="space-y-2">
-                <Label className="block text-right">رقم الهاتف</Label>
-                <Input 
-                  type="tel" 
-                  placeholder="07XXXXXXXX" 
-                  value={formData.phoneNumber} 
-                  onChange={(e) => setFormData({...formData, phoneNumber: e.target.value})} 
-                  required 
-                  className="text-right"
-                />
-              </div>
-              <Button type="submit" disabled={loadingRegistration} className="w-full h-12 text-lg font-bold">
+
+              {securityAlert && (
+                <div className="bg-red-50 border border-red-200 p-3 rounded-xl flex items-center gap-3 text-red-700 text-xs font-bold mt-2">
+                  <ShieldAlert className="w-4 h-4 shrink-0" />
+                  <p>{securityAlert}</p>
+                </div>
+              )}
+
+              <Button type="submit" disabled={loadingRegistration} className="w-full h-12 text-lg font-bold mt-4">
                 {loadingRegistration ? <Loader2 className="animate-spin" /> : "دخول مباشر"}
               </Button>
               <Link href="/" className="block">

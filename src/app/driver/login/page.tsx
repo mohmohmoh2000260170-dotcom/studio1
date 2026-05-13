@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState } from 'react';
@@ -5,11 +6,12 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Phone, LogIn, Loader2, UserPlus, AlertCircle, Clock, XCircle } from 'lucide-react';
+import { Phone, LogIn, Loader2, UserPlus, AlertCircle, Clock, XCircle, Lock } from 'lucide-react';
 import { useFirestore } from '@/firebase';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { collection, query, where, getDocs, updateDoc, doc } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
+import { getDeviceId } from '@/lib/device';
 import Link from 'next/link';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 
@@ -19,13 +21,13 @@ export default function DriverLogin() {
   const firestore = useFirestore();
 
   const [loading, setLoading] = useState(false);
-  const [phone, setPhone] = useState('');
+  const [formData, setFormData] = useState({ phone: '', pin: '' });
   const [statusMessage, setStatusMessage] = useState<{ type: 'pending' | 'rejected' | 'error', text: string } | null>(null);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!phone) {
-      toast({ variant: "destructive", title: "خطأ", description: "يرجى إدخال رقم الهاتف" });
+    if (!formData.phone || formData.pin.length !== 4) {
+      toast({ variant: "destructive", title: "خطأ", description: "يرجى إدخال رقم الهاتف ورمز PIN" });
       return;
     }
 
@@ -33,7 +35,7 @@ export default function DriverLogin() {
     setStatusMessage(null);
 
     try {
-      const q = query(collection(firestore, "drivers"), where("phone", "==", phone));
+      const q = query(collection(firestore, "drivers"), where("phone", "==", formData.phone));
       const snap = await getDocs(q);
 
       if (snap.empty) {
@@ -44,13 +46,33 @@ export default function DriverLogin() {
 
       const driverDoc = snap.docs[0];
       const data = driverDoc.data();
+      const currentDeviceId = getDeviceId();
+
+      // Security Check: PIN
+      if (data.pin !== formData.pin) {
+        toast({ variant: "destructive", title: "خطأ في الدخول", description: "رمز PIN غير صحيح" });
+        setLoading(false);
+        return;
+      }
+
+      // Security Check: Device Binding
+      if (data.deviceId && data.deviceId !== currentDeviceId) {
+        setStatusMessage({ type: 'error', text: 'تنبيه أمني: هذا الحساب مرتبط بجهاز آخر. لا يمكن الدخول من هذا الجهاز.' });
+        setLoading(false);
+        return;
+      }
 
       if (data.status === 'pending') {
         setStatusMessage({ type: 'pending', text: 'حسابك لا يزال قيد المراجعة من قبل الإدارة. يرجى الانتظار.' });
       } else if (data.status === 'rejected') {
         setStatusMessage({ type: 'rejected', text: 'نعتذر، لقد تم رفض طلب انضمامك. يرجى التواصل مع الإدارة.' });
       } else if (data.status === 'approved') {
+        const newSessionId = Math.random().toString(36).substring(2, 15);
+        await updateDoc(doc(firestore, "drivers", driverDoc.id), { sessionId: newSessionId });
+        
         localStorage.setItem('driverId', data.uid);
+        localStorage.setItem('sessionId', newSessionId);
+        
         toast({ title: "تم تسجيل الدخول", description: "مرحباً بك مجدداً!" });
         router.push('/driver');
       }
@@ -70,7 +92,7 @@ export default function DriverLogin() {
             <LogIn className="w-10 h-10 text-primary" />
           </div>
           <CardTitle className="text-2xl font-bold">دخول السائقين</CardTitle>
-          <CardDescription>أدخل رقم هاتفك المسجل للمتابعة</CardDescription>
+          <CardDescription>أدخل بياناتك المسجلة للمتابعة</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <form onSubmit={handleLogin} className="space-y-4">
@@ -83,8 +105,25 @@ export default function DriverLogin() {
                   type="tel"
                   placeholder="07XXXXXXXX" 
                   className="pr-10 text-right"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
+                  value={formData.phone}
+                  onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="pin" className="block text-right">رمز PIN (4 أرقام)</Label>
+              <div className="relative">
+                <Lock className="absolute right-3 top-3 w-4 h-4 text-muted-foreground" />
+                <Input 
+                  id="pin" 
+                  type="password"
+                  maxLength={4}
+                  placeholder="****" 
+                  className="pr-10 text-right"
+                  value={formData.pin}
+                  onChange={(e) => setFormData({...formData, pin: e.target.value.replace(/\D/g, '')})}
                   required
                 />
               </div>
@@ -96,7 +135,7 @@ export default function DriverLogin() {
                 {statusMessage.type === 'rejected' && <XCircle className="h-4 w-4" />}
                 {statusMessage.type === 'error' && <AlertCircle className="h-4 w-4" />}
                 <AlertTitle className="mr-6 font-bold">
-                  {statusMessage.type === 'pending' ? "قيد المراجعة" : statusMessage.type === 'rejected' ? "تم الرفض" : "تنبيه"}
+                  {statusMessage.type === 'pending' ? "قيد المراجعة" : statusMessage.type === 'rejected' ? "تم الرفض" : "تنبيه أمني"}
                 </AlertTitle>
                 <AlertDescription className="mr-6">
                   {statusMessage.text}

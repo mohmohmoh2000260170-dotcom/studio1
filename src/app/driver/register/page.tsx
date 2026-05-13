@@ -6,12 +6,13 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Truck, FileText, Phone, User, Loader2, ArrowRight, MapPin } from 'lucide-react';
+import { Truck, FileText, Phone, User, Loader2, ArrowRight, MapPin, Lock } from 'lucide-react';
 import { useFirestore, errorEmitter } from '@/firebase';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, query, where, getDocs } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { FirestorePermissionError } from '@/firebase/errors';
+import { getDeviceId } from '@/lib/device';
 import Link from 'next/link';
 
 export default function DriverRegistration() {
@@ -25,6 +26,7 @@ export default function DriverRegistration() {
     name: '',
     phone: '',
     companyLicense: '',
+    pin: '',
   });
 
   useEffect(() => {
@@ -43,15 +45,27 @@ export default function DriverRegistration() {
 
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name || !formData.phone || !formData.companyLicense) {
-      toast({ variant: "destructive", title: "خطأ", description: "يرجى تعبئة جميع الحقول" });
+    if (!formData.name || !formData.phone || !formData.companyLicense || formData.pin.length !== 4) {
+      toast({ variant: "destructive", title: "خطأ", description: "يرجى تعبئة جميع الحقول ووضع رمز PIN من 4 أرقام" });
       return;
     }
 
     setLoading(true);
     try {
+      // Check if phone already registered
+      const q = query(collection(firestore, "drivers"), where("phone", "==", formData.phone));
+      const snap = await getDocs(q);
+      
+      if (!snap.empty) {
+        toast({ variant: "destructive", title: "تنبيه", description: "هذا الرقم مسجل مسبقاً، يرجى تسجيل الدخول" });
+        setLoading(false);
+        return;
+      }
+
       const driversRef = collection(firestore, "drivers");
       const tempId = 'drv_' + Math.random().toString(36).substr(2, 9);
+      const deviceId = getDeviceId();
+      const sessionId = Math.random().toString(36).substring(2, 15);
       
       const driverData = {
         name: formData.name,
@@ -62,12 +76,17 @@ export default function DriverRegistration() {
         availability: 'available',
         lat: location.lat,
         lng: location.lng,
+        pin: formData.pin,
+        deviceId: deviceId,
+        sessionId: sessionId,
         timestamp: serverTimestamp(),
       };
 
       await addDoc(driversRef, driverData);
       
       localStorage.setItem('driverId', tempId);
+      localStorage.setItem('sessionId', sessionId);
+      
       toast({
         title: "تم تقديم الطلب",
         description: "طلبك قيد المراجعة، سنقوم بتفعيل حسابك قريباً.",
@@ -123,6 +142,22 @@ export default function DriverRegistration() {
                   className="pr-10 text-right"
                   value={formData.phone}
                   onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                  required
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="pin" className="block text-right">رمز PIN (4 أرقام)</Label>
+              <div className="relative">
+                <Lock className="absolute right-3 top-3 w-4 h-4 text-muted-foreground" />
+                <Input 
+                  id="pin" 
+                  type="password"
+                  maxLength={4}
+                  placeholder="****" 
+                  className="pr-10 text-right"
+                  value={formData.pin}
+                  onChange={(e) => setFormData({...formData, pin: e.target.value.replace(/\D/g, '')})}
                   required
                 />
               </div>
