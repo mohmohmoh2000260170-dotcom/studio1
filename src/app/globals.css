@@ -4,50 +4,42 @@
 
 @layer base {
   :root {
-    --background: 30 20% 95%; /* #FBF3EE */
+    --background: 0 0% 100%;
     --foreground: 30 5% 10%;
     --card: 0 0% 100%;
     --card-foreground: 30 5% 10%;
     --popover: 0 0% 100%;
     --popover-foreground: 30 5% 10%;
-    --primary: 30 90% 50%; /* #FA6619 */
+    --primary: 24 95% 53%; /* #FA6619 - Orange */
     --primary-foreground: 0 0% 100%;
-    --secondary: 30 15% 90%;
+    --secondary: 0 0% 96%;
     --secondary-foreground: 30 5% 10%;
-    --muted: 30 15% 90%;
+    --muted: 0 0% 96%;
     --muted-foreground: 30 5% 45%;
-    --accent: 0 70% 40%; /* #B31E1E */
+    --accent: 24 95% 53%;
     --accent-foreground: 0 0% 100%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
-    --border: 30 15% 85%;
-    --input: 30 15% 85%;
-    --ring: 30 90% 50%;
-    --radius: 0.75rem;
+    --border: 30 15% 90%;
+    --input: 30 15% 90%;
+    --ring: 24 95% 53%;
+    --radius: 1rem;
   }
 }
 
 @layer base {
   * {
     @apply border-border;
-    -webkit-tap-highlight-color: transparent;
   }
   body {
-    @apply bg-background text-foreground font-body;
+    @apply bg-background text-foreground;
     direction: rtl;
-    overscroll-behavior-y: contain;
-  }
-  
-  /* Disable pull-to-refresh on mobile for a better app-like feel */
-  html {
-    overscroll-behavior-y: none;
+    font-family: 'Noto Sans Arabic', sans-serif;
   }
 }
 
-/* Custom scrollbar for better mobile UX */
-::-webkit-scrollbar {
-  width: 4px;
-}
-::-webkit-scrollbar-thumb {
-  @apply bg-primary/20 rounded-full;
+.leaflet-container {
+  height: 100%;
+  width: 100%;
+  z-index: 1;
 }
