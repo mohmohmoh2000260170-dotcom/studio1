@@ -4,8 +4,10 @@
 import React, { useState, useEffect } from 'react';
 import { GoogleMapsView } from '@/components/google-maps-view';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Bell, Flame, Loader2, ArrowRight } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Bell, Flame, Loader2, ArrowRight, ShoppingCart, Phone } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { db } from '@/lib/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
@@ -13,8 +15,14 @@ import Link from 'next/link';
 
 export default function CustomerDashboard() {
   const { toast } = useToast();
+  const [step, setStep] = useState<'details' | 'map'>('details');
   const [isRinging, setIsRinging] = useState(false);
-  const [location, setLocation] = useState({ lat: 31.9454, lng: 35.9284 }); // Default Amman
+  const [location, setLocation] = useState({ lat: 31.9454, lng: 35.9284 });
+  const [formData, setFormData] = useState({
+    customerName: '',
+    phoneNumber: '',
+    cylinders: '1',
+  });
 
   useEffect(() => {
     if (typeof window !== 'undefined' && navigator.geolocation) {
@@ -25,19 +33,29 @@ export default function CustomerDashboard() {
             lng: position.coords.longitude,
           });
         },
-        () => {
-          console.log("Using default location");
-        }
+        () => console.log("Using default location")
       );
     }
   }, []);
 
+  const handleDetailsSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.customerName || !formData.phoneNumber || !formData.cylinders) {
+      toast({
+        variant: "destructive",
+        title: "خطأ",
+        description: "يرجى تعبئة جميع الحقول",
+      });
+      return;
+    }
+    setStep('map');
+  };
+
   const handleRingBell = async () => {
     setIsRinging(true);
     try {
-      // Save request to Firebase
       await addDoc(collection(db, "requests"), {
-        customerName: "خالد",
+        ...formData,
         lat: location.lat,
         lng: location.lng,
         status: 'pending',
@@ -46,7 +64,7 @@ export default function CustomerDashboard() {
 
       toast({
         title: "تم رن الجرس! 🔔",
-        description: "تم إرسال موقعك للسائقين القريبين. سيصلك الرد قريباً.",
+        description: "تم إرسال موقعك وتفاصيل طلبك للسائقين القريبين.",
       });
     } catch (error) {
       console.error("Error sending request:", error);
@@ -60,35 +78,97 @@ export default function CustomerDashboard() {
     }
   };
 
+  if (step === 'details') {
+    return (
+      <div className="min-h-screen bg-[#FBF3EE] flex flex-col items-center justify-center p-6">
+        <Card className="w-full max-w-md shadow-xl border-primary/20 bg-white">
+          <CardHeader className="text-center space-y-2">
+            <div className="mx-auto bg-primary/10 p-4 rounded-2xl w-fit mb-2">
+              <Flame className="w-10 h-10 text-primary" />
+            </div>
+            <CardTitle className="text-2xl font-bold">تفاصيل الطلب</CardTitle>
+            <CardDescription>أدخل معلوماتك لتحديد موقعك وطلب الغاز</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleDetailsSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="name">الاسم بالكامل</Label>
+                <Input 
+                  id="name" 
+                  placeholder="مثال: خالد أحمد" 
+                  value={formData.customerName}
+                  onChange={(e) => setFormData({...formData, customerName: e.target.value})}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="phone">رقم الهاتف</Label>
+                <div className="relative">
+                  <Phone className="absolute right-3 top-3 w-4 h-4 text-muted-foreground" />
+                  <Input 
+                    id="phone" 
+                    type="tel"
+                    placeholder="07XXXXXXXX" 
+                    className="pr-10"
+                    value={formData.phoneNumber}
+                    onChange={(e) => setFormData({...formData, phoneNumber: e.target.value})}
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="cylinders">عدد الاسطوانات</Label>
+                <div className="relative">
+                  <ShoppingCart className="absolute right-3 top-3 w-4 h-4 text-muted-foreground" />
+                  <Input 
+                    id="cylinders" 
+                    type="number" 
+                    min="1"
+                    className="pr-10"
+                    value={formData.cylinders}
+                    onChange={(e) => setFormData({...formData, cylinders: e.target.value})}
+                  />
+                </div>
+              </div>
+              <Button type="submit" className="w-full h-12 text-lg font-bold mt-6">
+                متابعة للموقع
+              </Button>
+              <Link href="/">
+                <Button variant="ghost" className="w-full mt-2">رجوع</Button>
+              </Link>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-screen bg-background">
-      {/* Simple Header */}
       <header className="bg-white border-b px-6 py-4 flex items-center justify-between shadow-sm z-20">
         <div className="flex items-center gap-4">
-          <Link href="/">
-            <Button variant="ghost" size="icon" className="rounded-full">
-              <ArrowRight className="w-5 h-5" />
-            </Button>
-          </Link>
+          <Button variant="ghost" size="icon" onClick={() => setStep('details')} className="rounded-full">
+            <ArrowRight className="w-5 h-5" />
+          </Button>
           <div className="flex items-center gap-2">
             <div className="bg-primary p-2 rounded-lg">
               <Flame className="w-5 h-5 text-white" />
             </div>
-            <h1 className="text-lg font-bold text-primary">غاز دليفري</h1>
+            <h1 className="text-lg font-bold text-primary">تحديد الموقع</h1>
           </div>
         </div>
       </header>
 
-      {/* Map View */}
       <div className="flex-1 relative">
         <GoogleMapsView markers={[
           { id: 'my-loc', lat: location.lat, lng: location.lng, type: 'customer', name: 'موقعي' }
         ]} />
 
-        {/* Floating Bell Button */}
         <div className="absolute bottom-10 left-0 right-0 px-6 flex justify-center">
           <Card className="w-full max-w-sm shadow-2xl border-primary/20 bg-white/95 backdrop-blur rounded-3xl overflow-hidden">
             <CardContent className="p-4">
+              <div className="flex justify-between items-center mb-4 px-2">
+                <div className="text-sm font-medium text-muted-foreground">عدد الاسطوانات: <span className="text-primary font-bold">{formData.cylinders}</span></div>
+                <div className="text-sm font-medium text-muted-foreground">الاسم: <span className="text-primary font-bold">{formData.customerName}</span></div>
+              </div>
               <Button 
                 onClick={handleRingBell} 
                 disabled={isRinging}
