@@ -3,6 +3,10 @@ import { getFirestore, Firestore } from 'firebase/firestore';
 import { getAuth, Auth } from 'firebase/auth';
 import { firebaseConfig } from './config';
 
+/**
+ * Initializes Firebase services.
+ * Ensures that the app is only initialized once.
+ */
 export function initializeFirebase(): {
   app: FirebaseApp;
   firestore: Firestore;
