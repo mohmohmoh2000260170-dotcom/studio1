@@ -138,7 +138,7 @@ export default function AdminDashboard() {
       });
   };
 
-  const handleResetUserAccount = async (id: string) => {
+  const handleResetUserAccount = async (id: string, name: string) => {
     if (!firestore) return;
     setResettingUserId(id);
     
@@ -152,7 +152,7 @@ export default function AdminDashboard() {
       
       toast({
         title: "تم تصفير الحساب",
-        description: "تم مسح الرمز السري ومعلومات الجهاز. يمكن للعميل الآن تسجيل الدخول أو إعداد حسابه من جديد.",
+        description: `تم تصفير حساب العميل ${name} بنجاح. يمكنه الآن تسجيل الدخول أو إعداد حسابه من جديد.`,
       });
     } catch (error) {
       console.error("Reset account failed:", error);
@@ -418,22 +418,22 @@ export default function AdminDashboard() {
                           <td className="px-6 py-4">
                             <AlertDialog>
                               <AlertDialogTrigger asChild>
-                                <Button variant="ghost" size="sm" className="text-amber-600 hover:text-amber-700 hover:bg-amber-50">
+                                <Button variant="ghost" size="sm" className="text-amber-600 hover:text-amber-700 hover:bg-amber-50 font-bold">
                                   <RotateCcw className="w-4 h-4 ml-2" />
-                                  تصفير الحساب
+                                  تصفير هذا المستخدم
                                 </Button>
                               </AlertDialogTrigger>
                               <AlertDialogContent dir="rtl">
                                 <AlertDialogHeader>
                                   <AlertDialogTitle className="text-right">تصفير حساب العميل</AlertDialogTitle>
                                   <AlertDialogDescription className="text-right">
-                                    هل أنت متأكد من تصفير حساب {customer.name}؟ سيتم حذف الرمز السري ومعلومات الجهاز، مما يسمح للعميل بإعادة إعداد حسابه من جديد. سيتم الحفاظ على الاسم ورقم الهاتف.
+                                    هل أنت متأكد من تصفير حساب {customer.name}؟ سيتم حذف الرمز السري ومعلومات الجهاز بشكل كامل لهذا المستخدم فقط، مما يسمح له بإعادة إعداد حسابه من جديد.
                                   </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter className="flex-row-reverse gap-2">
                                   <AlertDialogCancel className="ml-2">إلغاء</AlertDialogCancel>
-                                  <AlertDialogAction onClick={() => handleResetUserAccount(customer.id)} className="bg-amber-600 hover:bg-amber-700">
-                                    {resettingUserId === customer.id ? <Loader2 className="w-4 h-4 animate-spin" /> : "تأكيد التصفير"}
+                                  <AlertDialogAction onClick={() => handleResetUserAccount(customer.id, customer.name)} className="bg-amber-600 hover:bg-amber-700">
+                                    {resettingUserId === customer.id ? <Loader2 className="w-4 h-4 animate-spin" /> : "تأكيد تصفير المستخدم"}
                                   </AlertDialogAction>
                                 </AlertDialogFooter>
                               </AlertDialogContent>
