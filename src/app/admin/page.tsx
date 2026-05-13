@@ -5,9 +5,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ShieldCheck, Lock } from 'lucide-react';
+import { ShieldCheck, Lock, Mail, Phone } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
+import { ADMIN_CONFIG } from '@/lib/constants';
 
 export default function AdminLogin() {
   const router = useRouter();
@@ -16,8 +17,7 @@ export default function AdminLogin() {
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    // Updated admin password check
-    if (password === 'Mhm2210623@') {
+    if (password === ADMIN_CONFIG.password) {
       localStorage.setItem('isAdmin', 'true');
       toast({
         title: "مرحباً أيها المدير",
@@ -42,6 +42,14 @@ export default function AdminLogin() {
           </div>
           <CardTitle className="text-2xl font-bold">لوحة الإدارة</CardTitle>
           <CardDescription>الرجاء إدخال كلمة المرور السرية للمتابعة</CardDescription>
+          <div className="mt-4 p-3 bg-slate-50 rounded-lg text-xs space-y-1 text-slate-500">
+            <div className="flex items-center justify-center gap-2">
+              <Mail className="w-3 h-3" /> {ADMIN_CONFIG.email}
+            </div>
+            <div className="flex items-center justify-center gap-2">
+              <Phone className="w-3 h-3" /> {ADMIN_CONFIG.phone}
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleLogin} className="space-y-4">

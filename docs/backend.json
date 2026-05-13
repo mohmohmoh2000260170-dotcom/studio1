@@ -1,9 +1,8 @@
-
 {
   "entities": {
     "Driver": {
       "title": "Driver",
-      "description": "Information about a gas delivery driver or company.",
+      "description": "Information about a gas delivery driver or company. Admin contact: Mohammadalkhalileh296@gmail.com, 0788526771.",
       "type": "object",
       "properties": {
         "name": { "type": "string", "description": "The driver's name or company name." },
@@ -16,7 +15,7 @@
     },
     "Request": {
       "title": "Delivery Request",
-      "description": "A customer request for gas cylinder delivery.",
+      "description": "A customer request for gas cylinder delivery. Includes location and contact details.",
       "type": "object",
       "properties": {
         "customerName": { "type": "string" },

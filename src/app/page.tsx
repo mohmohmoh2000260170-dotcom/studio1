@@ -13,7 +13,7 @@ export default function Home() {
       {/* Admin Button - Floating Top Right */}
       <div className="absolute top-6 left-6 z-20">
         <Link href="/admin">
-          <Button variant="outline" className="gap-2 bg-white/50 backdrop-blur hover:bg-white">
+          <Button variant="outline" className="gap-2 bg-white/50 backdrop-blur hover:bg-white border-primary/20 shadow-sm">
             <ShieldCheck className="w-4 h-4 text-primary" />
             لوحة الإدارة
           </Button>
