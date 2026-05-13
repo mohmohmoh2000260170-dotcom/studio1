@@ -79,6 +79,10 @@ export default function AdminDashboard() {
       .then(() => toast({ title: "تم التحديث" }));
   };
 
+  const handleRefresh = () => {
+    window.location.reload();
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col" dir="rtl">
       <header className="bg-white border-b px-6 py-4 flex items-center justify-between shadow-sm sticky top-0 z-10">
@@ -86,7 +90,10 @@ export default function AdminDashboard() {
           <div className="bg-primary p-2 rounded-lg text-white"><LayoutDashboard className="w-5 h-5" /></div>
           <h1 className="text-xl font-bold">لوحة تحكم المشرف</h1>
         </div>
-        <Button variant="ghost" onClick={() => router.push('/')} className="text-red-500 font-bold"><LogOut className="w-4 h-4 ml-2" /> خروج</Button>
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="icon" onClick={handleRefresh} className="text-slate-400 hover:text-primary"><RotateCcw className="w-4 h-4" /></Button>
+          <Button variant="ghost" onClick={() => router.push('/')} className="text-red-500 font-bold"><LogOut className="w-4 h-4 ml-2" /> خروج</Button>
+        </div>
       </header>
 
       <main className="flex-1 p-6 max-w-6xl mx-auto w-full">
