@@ -1,4 +1,3 @@
-
 {
   "entities": {
     "Driver": {
@@ -15,6 +14,7 @@
         "lng": { "type": "number" },
         "lastSeen": { "type": "string", "format": "date-time" },
         "uid": { "type": "string" },
+        "sessionId": { "type": "string", "description": "Unique session ID to enforce single device login." },
         "timestamp": { "type": "string", "format": "date-time" }
       },
       "required": ["name", "phone", "status", "availability", "uid"]
@@ -27,6 +27,7 @@
         "name": { "type": "string" },
         "phone": { "type": "string" },
         "uid": { "type": "string" },
+        "sessionId": { "type": "string", "description": "Unique session ID to enforce single device login." },
         "timestamp": { "type": "string", "format": "date-time" }
       },
       "required": ["name", "phone", "uid"]

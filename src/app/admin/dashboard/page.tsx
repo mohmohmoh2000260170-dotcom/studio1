@@ -1,8 +1,7 @@
-
 "use client";
 
 import React, { useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -18,7 +17,8 @@ import {
   MapPin, 
   Clock,
   Truck,
-  Bell
+  Bell,
+  Users
 } from 'lucide-react';
 import { useFirestore, useCollection, useMemoFirebase, errorEmitter } from '@/firebase';
 import { collection, query, where, doc, updateDoc, orderBy } from 'firebase/firestore';
@@ -33,6 +33,13 @@ interface PendingDriver {
   companyLicense: string;
   status: string;
   uid: string;
+}
+
+interface Customer {
+  id: string;
+  name: string;
+  phone: string;
+  timestamp: any;
 }
 
 interface ActiveRequest {
@@ -75,8 +82,17 @@ export default function AdminDashboard() {
     );
   }, [firestore]);
 
+  const customersQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return query(
+      collection(firestore, "customers"),
+      orderBy("timestamp", "desc")
+    );
+  }, [firestore]);
+
   const { data: drivers, loading: loadingDrivers } = useCollection<PendingDriver>(driversQuery);
   const { data: requests, loading: loadingRequests } = useCollection<ActiveRequest>(requestsQuery);
+  const { data: customers, loading: loadingCustomers } = useCollection<Customer>(customersQuery);
 
   const handleUpdateStatus = (id: string, newStatus: 'approved' | 'rejected') => {
     if (!firestore) return;
@@ -121,82 +137,42 @@ export default function AdminDashboard() {
 
       <main className="flex-1 p-6 max-w-5xl mx-auto w-full">
         <Tabs defaultValue="drivers" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2 h-12 bg-white border">
-            <TabsTrigger value="drivers" className="text-base font-bold data-[state=active]:bg-primary data-[state=active]:text-white">
-              <Truck className="w-4 h-4 ml-2" />
-              طلبات الشركات ({(drivers || []).length})
+          <TabsList className="grid w-full grid-cols-3 h-12 bg-white border">
+            <TabsTrigger value="drivers" className="text-xs md:text-sm font-bold data-[state=active]:bg-primary data-[state=active]:text-white">
+              <Truck className="w-4 h-4 ml-1" />
+              الشركات ({(drivers || []).length})
             </TabsTrigger>
-            <TabsTrigger value="requests" className="text-base font-bold data-[state=active]:bg-primary data-[state=active]:text-white">
-              <Bell className="w-4 h-4 ml-2" />
-              طلبات العملاء الحالية ({(requests || []).length})
+            <TabsTrigger value="requests" className="text-xs md:text-sm font-bold data-[state=active]:bg-primary data-[state=active]:text-white">
+              <Bell className="w-4 h-4 ml-1" />
+              الطلبات ({(requests || []).length})
+            </TabsTrigger>
+            <TabsTrigger value="customers" className="text-xs md:text-sm font-bold data-[state=active]:bg-primary data-[state=active]:text-white">
+              <Users className="w-4 h-4 ml-1" />
+              العملاء ({(customers || []).length})
             </TabsTrigger>
           </TabsList>
 
           <TabsContent value="drivers" className="space-y-4">
             <div className="mb-4 text-right">
               <h2 className="text-2xl font-bold text-slate-800">طلبات الانضمام المعلقة</h2>
-              <p className="text-muted-foreground mt-1">قم بمراجعة بيانات الشركات والسائقين قبل تفعيل الحسابات</p>
             </div>
-
             {loadingDrivers ? (
-              <div className="flex justify-center py-20">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-              </div>
-            ) : !drivers || drivers.length === 0 ? (
-              <Card className="border-dashed border-2 py-20 text-center">
-                <CardContent className="space-y-4">
-                  <div className="bg-slate-100 p-4 rounded-full w-fit mx-auto">
-                    <Check className="w-8 h-8 text-slate-400" />
-                  </div>
-                  <p className="text-muted-foreground font-medium">لا يوجد طلبات انضمام معلقة</p>
-                </CardContent>
-              </Card>
+              <div className="flex justify-center py-20"><Loader2 className="animate-spin text-primary" /></div>
+            ) : drivers?.length === 0 ? (
+              <div className="text-center py-20 text-muted-foreground">لا يوجد طلبات معلقة</div>
             ) : (
               <div className="grid gap-4">
-                {drivers.map((driver) => (
-                  <Card key={driver.id} className="overflow-hidden border-2 hover:border-primary/20 transition-all shadow-sm">
-                    <CardContent className="p-0 text-right">
-                      <div className="flex flex-col md:flex-row-reverse">
-                        <div className="flex-1 p-6 space-y-4">
-                          <div className="flex items-center justify-between flex-row-reverse">
-                            <div className="flex items-center gap-3 flex-row-reverse">
-                              <div className="bg-primary/10 p-2 rounded-full">
-                                <User className="w-5 h-5 text-primary" />
-                              </div>
-                              <h3 className="text-lg font-bold">{driver.name}</h3>
-                            </div>
-                            <Badge variant="secondary" className="bg-amber-100 text-amber-700">قيد المراجعة</Badge>
-                          </div>
-                          
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="flex items-center gap-2 text-sm text-slate-600 justify-end">
-                              {driver.phone} <span className="font-medium">:رقم الهاتف</span>
-                              <Phone className="w-4 h-4 text-muted-foreground" />
-                            </div>
-                            <div className="flex items-center gap-2 text-sm text-slate-600 justify-end">
-                              {driver.companyLicense} <span className="font-medium">:الرخصة</span>
-                              <FileText className="w-4 h-4 text-muted-foreground" />
-                            </div>
-                          </div>
-                        </div>
-                        
-                        <div className="bg-slate-50 border-t md:border-t-0 md:border-l p-4 flex md:flex-col gap-2 justify-center min-w-[160px]">
-                          <Button 
-                            onClick={() => handleUpdateStatus(driver.id, 'approved')}
-                            className="flex-1 bg-green-600 hover:bg-green-700 gap-2 font-bold"
-                          >
-                            <Check className="w-4 h-4" />
-                            تفعيل الحساب
-                          </Button>
-                          <Button 
-                            onClick={() => handleUpdateStatus(driver.id, 'rejected')}
-                            variant="outline" 
-                            className="flex-1 text-red-600 border-red-200 hover:bg-red-50 gap-2 font-bold"
-                          >
-                            <X className="w-4 h-4" />
-                            رفض الطلب
-                          </Button>
-                        </div>
+                {drivers?.map((driver) => (
+                  <Card key={driver.id} className="overflow-hidden border-2 shadow-sm">
+                    <CardContent className="p-6 flex flex-col md:flex-row-reverse justify-between items-center gap-4 text-right">
+                      <div className="flex-1 space-y-2">
+                        <h3 className="text-lg font-bold">{driver.name}</h3>
+                        <p className="text-sm text-slate-600 flex items-center justify-end gap-2">{driver.phone} <Phone className="w-4 h-4" /></p>
+                        <p className="text-sm text-slate-600 flex items-center justify-end gap-2">{driver.companyLicense} <FileText className="w-4 h-4" /></p>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button onClick={() => handleUpdateStatus(driver.id, 'approved')} className="bg-green-600 hover:bg-green-700">قبول</Button>
+                        <Button onClick={() => handleUpdateStatus(driver.id, 'rejected')} variant="outline" className="text-red-600 border-red-200">رفض</Button>
                       </div>
                     </CardContent>
                   </Card>
@@ -207,65 +183,55 @@ export default function AdminDashboard() {
 
           <TabsContent value="requests" className="space-y-4">
             <div className="mb-4 text-right">
-              <h2 className="text-2xl font-bold text-slate-800">طلبات التوصيل النشطة</h2>
-              <p className="text-muted-foreground mt-1">إجمالي الطلبات التي أرسلها العملاء حالياً</p>
+              <h2 className="text-2xl font-bold text-slate-800">الطلبات النشطة</h2>
             </div>
-
             {loadingRequests ? (
-              <div className="flex justify-center py-20">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-              </div>
-            ) : !requests || requests.length === 0 ? (
-              <Card className="border-dashed border-2 py-20 text-center">
-                <CardContent className="space-y-4">
-                  <div className="bg-slate-100 p-4 rounded-full w-fit mx-auto">
-                    <Bell className="w-8 h-8 text-slate-400" />
-                  </div>
-                  <p className="text-muted-foreground font-medium">لا توجد طلبات توصيل نشطة</p>
-                </CardContent>
-              </Card>
+              <div className="flex justify-center py-20"><Loader2 className="animate-spin text-primary" /></div>
+            ) : requests?.length === 0 ? (
+              <div className="text-center py-20 text-muted-foreground">لا توجد طلبات نشطة</div>
             ) : (
               <div className="grid gap-4">
-                {requests.map((req) => (
-                  <Card key={req.id} className="border-2 hover:border-primary/20 transition-all shadow-sm text-right overflow-hidden">
-                    <CardContent className="p-6 space-y-4">
-                      <div className="flex items-center justify-between flex-row-reverse">
-                        <div className="flex items-center gap-3 flex-row-reverse">
-                          <div className="bg-blue-100 p-2 rounded-full text-blue-600">
-                            <User className="w-5 h-5" />
-                          </div>
-                          <h3 className="text-lg font-bold">{req.customerName}</h3>
-                        </div>
-                        <div className="flex items-center gap-2 text-xs text-slate-400">
-                          <Clock className="w-3 h-3" />
-                          {req.timestamp?.toDate()?.toLocaleTimeString('ar-JO', { hour: '2-digit', minute: '2-digit' })}
+                {requests?.map((req) => (
+                  <Card key={req.id} className="p-6 text-right">
+                    <div className="flex justify-between items-start mb-4">
+                      <Badge className="bg-blue-100 text-blue-700">قيد الانتظار</Badge>
+                      <h3 className="font-bold text-lg">{req.customerName}</h3>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4 text-sm text-slate-600">
+                      <div>الكمية: {req.cylinders}</div>
+                      <div>الهاتف: {req.phoneNumber}</div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="customers" className="space-y-4">
+            <div className="mb-4 text-right">
+              <h2 className="text-2xl font-bold text-slate-800">إدارة العملاء</h2>
+              <p className="text-muted-foreground">قائمة بجميع العملاء المسجلين في النظام</p>
+            </div>
+            {loadingCustomers ? (
+              <div className="flex justify-center py-20"><Loader2 className="animate-spin text-primary" /></div>
+            ) : !customers || customers.length === 0 ? (
+              <div className="text-center py-20 text-muted-foreground">لا يوجد عملاء مسجلون حالياً</div>
+            ) : (
+              <div className="grid gap-4">
+                {customers.map((customer) => (
+                  <Card key={customer.id} className="p-6 text-right">
+                    <div className="flex items-center justify-between flex-row-reverse">
+                      <div className="flex items-center gap-3 flex-row-reverse">
+                        <div className="bg-slate-100 p-2 rounded-full"><User className="w-5 h-5 text-slate-600" /></div>
+                        <div>
+                          <h3 className="font-bold">{customer.name}</h3>
+                          <p className="text-xs text-muted-foreground">{customer.phone}</p>
                         </div>
                       </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="bg-primary/5 p-3 rounded-xl flex items-center gap-2 text-sm justify-end border border-primary/10">
-                          <span className="text-lg font-black text-primary">{req.cylinders}</span>
-                          <span className="font-medium">:عدد الأسطوانات</span>
-                          <ShoppingCart className="w-4 h-4 text-primary" />
-                        </div>
-                        <div className="flex items-center gap-2 text-sm justify-end">
-                          {req.phoneNumber} <span className="font-medium">:رقم الهاتف</span>
-                          <Phone className="w-4 h-4 text-slate-400" />
-                        </div>
-                        <div className="flex items-center gap-2 text-sm text-blue-600 justify-end">
-                          GPS: {req.lat.toFixed(4)}, {req.lng.toFixed(4)}
-                          <MapPin className="w-4 h-4" />
-                        </div>
+                      <div className="text-xs text-slate-400">
+                        {customer.timestamp?.toDate()?.toLocaleDateString('ar-JO')}
                       </div>
-
-                      <Button 
-                        variant="secondary"
-                        className="w-full text-xs h-8"
-                        onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${req.lat},${req.lng}`, '_blank')}
-                      >
-                        عرض موقع العميل على الخريطة
-                      </Button>
-                    </CardContent>
+                    </div>
                   </Card>
                 ))}
               </div>
@@ -276,3 +242,7 @@ export default function AdminDashboard() {
     </div>
   );
 }
+
+const Loader2 = ({ className }: { className?: string }) => (
+  <div className={`animate-spin rounded-full h-8 w-8 border-b-2 border-primary ${className}`}></div>
+);
