@@ -1,8 +1,6 @@
-
 /**
  * Firebase configuration object for production.
  * Linked to the gas-delivery-jo production project.
- * Works perfectly on the Firebase Spark (Free) plan.
  */
 export const firebaseConfig = {
   apiKey: "AIzaSyA9OYojXCfc8PfDeESLF3jeTuCXIJPNDVY",
