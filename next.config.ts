@@ -1,7 +1,7 @@
 import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  /* Production Optimization Config */
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -30,6 +30,9 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  // Optimizing for mobile web views
+  compress: true,
+  reactStrictMode: true,
 };
 
 export default nextConfig;

@@ -25,35 +25,29 @@
     --ring: 30 90% 50%;
     --radius: 0.75rem;
   }
-  .dark {
-    --background: 30 5% 10%;
-    --foreground: 0 0% 98%;
-    --card: 30 5% 15%;
-    --card-foreground: 0 0% 98%;
-    --popover: 30 5% 15%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 30 90% 55%;
-    --primary-foreground: 30 5% 10%;
-    --secondary: 30 15% 20%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 30 15% 20%;
-    --muted-foreground: 30 5% 65%;
-    --accent: 0 70% 50%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 30 15% 20%;
-    --input: 30 15% 20%;
-    --ring: 30 90% 55%;
-  }
 }
 
 @layer base {
   * {
     @apply border-border;
+    -webkit-tap-highlight-color: transparent;
   }
   body {
     @apply bg-background text-foreground font-body;
     direction: rtl;
+    overscroll-behavior-y: contain;
   }
+  
+  /* Disable pull-to-refresh on mobile for a better app-like feel */
+  html {
+    overscroll-behavior-y: none;
+  }
+}
+
+/* Custom scrollbar for better mobile UX */
+::-webkit-scrollbar {
+  width: 4px;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-primary/20 rounded-full;
 }

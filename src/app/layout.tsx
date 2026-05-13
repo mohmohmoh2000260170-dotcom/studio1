@@ -1,12 +1,25 @@
-
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { FirebaseClientProvider } from '@/firebase/client-provider';
 import { Toaster } from '@/components/ui/toaster';
 
 export const metadata: Metadata = {
-  title: 'غاز دليفري - توصيل اسطوانات الغاز',
-  description: 'تطبيق توصيل اسطوانات الغاز الأسرع في الأردن',
+  title: 'غاز دليفري | أسرع توصيل أسطوانات غاز',
+  description: 'تطبيق توصيل أسطوانات الغاز الأول في الأردن. اطلب الآن بضغطة زر واحدة.',
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'غاز دليفري',
+  },
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  themeColor: '#FA6619',
 };
 
 export default function RootLayout({
