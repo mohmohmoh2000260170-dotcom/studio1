@@ -43,7 +43,6 @@ export default function DriverDashboard() {
     }
   }, [router]);
 
-  // We need to fetch driver info by UID since we use Auth UID now
   useEffect(() => {
     if (!firestore || !driverId) return;
 
@@ -97,7 +96,7 @@ export default function DriverDashboard() {
           <div className="mx-auto bg-amber-100 p-6 rounded-full w-fit animate-pulse">
             <ShieldAlert className="w-16 h-16 text-amber-600" />
           </div>
-          <h1 className="text-2xl font-bold text-foreground">بانتظار الموافقة</h1>
+          <h1 className="text-2xl font-bold text-foreground">بانتظار موافقة الإدارة</h1>
           <p className="text-muted-foreground leading-relaxed">
             أهلاً يا {driverInfo.name}. تم التحقق من رقم هاتفك بنجاح. 
             حسابك حالياً قيد المراجعة من قبل الإدارة. سيتم تفعيل حسابك لتبدأ باستقبال الطلبات فور التأكد من بياناتك.

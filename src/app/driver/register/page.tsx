@@ -71,9 +71,7 @@ export default function DriverRegistration() {
       toast({ 
         variant: "destructive", 
         title: "خطأ في الإرسال", 
-        description: error.code === 'auth/invalid-api-key' 
-          ? "مفتاح API غير صالح. يرجى تحديث الإعدادات." 
-          : error.message 
+        description: error.message 
       });
     } finally {
       setLoading(false);
@@ -107,14 +105,7 @@ export default function DriverRegistration() {
       router.push('/driver');
     } catch (error: any) {
       console.error(error);
-      if (error.code === 'permission-denied') {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-          path: 'drivers',
-          operation: 'create',
-        } satisfies SecurityRuleContext));
-      } else {
-        toast({ variant: "destructive", title: "خطأ في التحقق", description: "الرمز المدخل غير صحيح" });
-      }
+      toast({ variant: "destructive", title: "خطأ في التحقق", description: "الرمز المدخل غير صحيح" });
     } finally {
       setLoading(false);
     }

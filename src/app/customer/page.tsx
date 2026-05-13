@@ -87,9 +87,7 @@ export default function CustomerDashboard() {
       toast({ 
         variant: "destructive", 
         title: "خطأ في الإرسال", 
-        description: error.code === 'auth/invalid-api-key' 
-          ? "مفتاح API غير صالح. يرجى تحديث الإعدادات." 
-          : error.message 
+        description: error.message 
       });
     } finally {
       setIsLoading(false);
