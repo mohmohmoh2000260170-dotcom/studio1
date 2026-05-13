@@ -1,0 +1,22 @@
+{
+  "placeholderImages": [
+    {
+      "id": "landing-hero",
+      "description": "Gas delivery truck in a sunny street",
+      "imageUrl": "https://picsum.photos/seed/gas1/1200/800",
+      "imageHint": "gas delivery"
+    },
+    {
+      "id": "customer-avatar",
+      "description": "Happy customer holding a mobile phone",
+      "imageUrl": "https://picsum.photos/seed/cust1/150/150",
+      "imageHint": "person phone"
+    },
+    {
+      "id": "driver-avatar",
+      "description": "Professional driver smiling",
+      "imageUrl": "https://picsum.photos/seed/driver1/150/150",
+      "imageHint": "worker smile"
+    }
+  ]
+}
