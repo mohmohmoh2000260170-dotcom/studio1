@@ -1,6 +1,7 @@
+
 "use client";
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -19,14 +20,27 @@ import {
   Truck,
   Bell,
   Users,
-  Search
+  Search,
+  Trash2,
+  AlertTriangle,
+  Loader2
 } from 'lucide-react';
 import { useFirestore, useCollection, useMemoFirebase, errorEmitter } from '@/firebase';
-import { collection, query, where, doc, updateDoc, orderBy } from 'firebase/firestore';
+import { collection, query, where, doc, updateDoc, orderBy, getDocs, deleteDoc, writeBatch } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { FirestorePermissionError } from '@/firebase/errors';
-import { Input } from '@/components/ui/input';
+import { 
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 interface PendingDriver {
   id: string;
@@ -59,6 +73,7 @@ export default function AdminDashboard() {
   const router = useRouter();
   const { toast } = useToast();
   const firestore = useFirestore();
+  const [isResetting, setIsResetting] = useState(false);
 
   useEffect(() => {
     const isAdmin = localStorage.getItem('isAdmin');
@@ -117,6 +132,39 @@ export default function AdminDashboard() {
       });
   };
 
+  const handleResetSystem = async () => {
+    if (!firestore) return;
+    setIsResetting(true);
+
+    try {
+      const collectionsToWipe = ['drivers', 'customers', 'requests'];
+      
+      for (const colName of collectionsToWipe) {
+        const snap = await getDocs(collection(firestore, colName));
+        const batch = writeBatch(firestore);
+        snap.docs.forEach((d) => batch.delete(d.ref));
+        await batch.commit();
+      }
+
+      toast({
+        title: "تم تصفير النظام",
+        description: "تم حذف جميع السجلات بنجاح. سيتم تسجيل خروجك الآن.",
+      });
+      
+      localStorage.clear();
+      router.push('/');
+    } catch (error) {
+      console.error("Reset failed:", error);
+      toast({
+        variant: "destructive",
+        title: "فشل التصفير",
+        description: "حدث خطأ أثناء محاولة حذف البيانات.",
+      });
+    } finally {
+      setIsResetting(false);
+    }
+  };
+
   const handleLogout = () => {
     localStorage.removeItem('isAdmin');
     router.push('/');
@@ -131,10 +179,34 @@ export default function AdminDashboard() {
           </div>
           <h1 className="text-xl font-bold text-slate-900">لوحة تحكم المشرف</h1>
         </div>
-        <Button variant="ghost" size="sm" onClick={handleLogout} className="text-muted-foreground hover:text-red-500">
-          <LogOut className="w-4 h-4 ml-2" />
-          خروج
-        </Button>
+        <div className="flex items-center gap-2">
+           <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="outline" size="sm" className="text-red-500 border-red-200 hover:bg-red-50">
+                <Trash2 className="w-4 h-4 ml-2" />
+                تصفير البيانات
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent dir="rtl">
+              <AlertDialogHeader>
+                <AlertDialogTitle className="text-right">هل أنت متأكد تماماً؟</AlertDialogTitle>
+                <AlertDialogDescription className="text-right">
+                  سيؤدي هذا الإجراء إلى حذف جميع السائقين والعملاء والطلبات بشكل نهائي من قاعدة البيانات. لا يمكن التراجع عن هذا الإجراء.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter className="flex-row-reverse gap-2">
+                <AlertDialogCancel className="ml-2">إلغاء</AlertDialogCancel>
+                <AlertDialogAction onClick={handleResetSystem} className="bg-red-600 hover:bg-red-700">
+                  {isResetting ? <Loader2 className="w-4 h-4 animate-spin" /> : "نعم، احذف كل شيء"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+          <Button variant="ghost" size="sm" onClick={handleLogout} className="text-muted-foreground hover:text-red-500">
+            <LogOut className="w-4 h-4 ml-2" />
+            خروج
+          </Button>
+        </div>
       </header>
 
       <main className="flex-1 p-6 max-w-6xl mx-auto w-full">
@@ -319,7 +391,3 @@ export default function AdminDashboard() {
     </div>
   );
 }
-
-const Loader2 = ({ className }: { className?: string }) => (
-  <div className={`animate-spin rounded-full h-8 w-8 border-b-2 border-primary ${className}`}></div>
-);
