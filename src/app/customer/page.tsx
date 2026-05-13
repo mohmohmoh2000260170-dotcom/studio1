@@ -1,30 +1,39 @@
-
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { GoogleMapsView } from '@/components/google-maps-view';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Bell, Flame, Loader2, ArrowRight, ShoppingCart, Phone } from 'lucide-react';
+import { Bell, Flame, Loader2, ArrowRight, ShoppingCart, Phone, ShieldCheck } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { useFirestore, errorEmitter } from '@/firebase';
+import { useFirestore, useAuth, errorEmitter } from '@/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { RecaptchaVerifier, signInWithPhoneNumber, ConfirmationResult } from 'firebase/auth';
 import { FirestorePermissionError } from '@/firebase/errors';
 import Link from 'next/link';
 
 export default function CustomerDashboard() {
   const { toast } = useToast();
   const firestore = useFirestore();
-  const [step, setStep] = useState<'details' | 'map'>('details');
+  const auth = useAuth();
+  
+  const [step, setStep] = useState<'details' | 'otp' | 'map'>('details');
   const [isRinging, setIsRinging] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [location, setLocation] = useState({ lat: 31.9454, lng: 35.9284 });
   const [formData, setFormData] = useState({
     customerName: '',
     phoneNumber: '',
     cylinders: '1',
   });
+  const [verificationCode, setVerificationCode] = useState('');
+  const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
+  const [verifiedUid, setVerifiedUid] = useState<string | null>(null);
+  
+  const recaptchaContainerRef = useRef<HTMLDivElement>(null);
+  const recaptchaVerifier = useRef<RecaptchaVerifier | null>(null);
 
   useEffect(() => {
     if (typeof window !== 'undefined' && navigator.geolocation) {
@@ -40,26 +49,70 @@ export default function CustomerDashboard() {
     }
   }, []);
 
-  const handleDetailsSubmit = (e: React.FormEvent) => {
+  const initRecaptcha = () => {
+    if (!recaptchaVerifier.current && auth && recaptchaContainerRef.current) {
+      recaptchaVerifier.current = new RecaptchaVerifier(auth, recaptchaContainerRef.current, {
+        size: 'invisible',
+      });
+    }
+  };
+
+  const handleDetailsSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.customerName || !formData.phoneNumber || !formData.cylinders) {
-      toast({
-        variant: "destructive",
-        title: "خطأ",
-        description: "يرجى تعبئة جميع الحقول",
-      });
+      toast({ variant: "destructive", title: "خطأ", description: "يرجى تعبئة جميع الحقول" });
       return;
     }
-    setStep('map');
+
+    // Basic format check (needs to be international for Firebase)
+    let formattedPhone = formData.phoneNumber;
+    if (formattedPhone.startsWith('0')) {
+      formattedPhone = '+962' + formattedPhone.substring(1);
+    }
+
+    setIsLoading(true);
+    try {
+      initRecaptcha();
+      if (!recaptchaVerifier.current) throw new Error("Recaptcha not initialized");
+      
+      const result = await signInWithPhoneNumber(auth, formattedPhone, recaptchaVerifier.current);
+      setConfirmationResult(result);
+      setStep('otp');
+      toast({ title: "تم إرسال الرمز", description: "يرجى إدخال رمز التحقق المرسل لهاتفك" });
+    } catch (error: any) {
+      console.error(error);
+      toast({ variant: "destructive", title: "خطأ في الإرسال", description: error.message });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleOtpSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!verificationCode || !confirmationResult) return;
+
+    setIsLoading(true);
+    try {
+      const result = await confirmationResult.confirm(verificationCode);
+      setVerifiedUid(result.user.uid);
+      setStep('map');
+      toast({ title: "تم التحقق", description: "تم تأكيد رقم هاتفك بنجاح" });
+    } catch (error: any) {
+      console.error(error);
+      toast({ variant: "destructive", title: "رمز خاطئ", description: "الرمز المدخل غير صحيح، حاول مرة أخرى" });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleRingBell = () => {
-    if (!firestore) return;
+    if (!firestore || !verifiedUid) return;
     setIsRinging(true);
     
     const requestsRef = collection(firestore, "requests");
     const requestData = {
       ...formData,
+      uid: verifiedUid,
       lat: location.lat,
       lng: location.lng,
       status: 'pending',
@@ -89,6 +142,7 @@ export default function CustomerDashboard() {
   if (step === 'details') {
     return (
       <div className="min-h-screen bg-[#FBF3EE] flex flex-col items-center justify-center p-6">
+        <div ref={recaptchaContainerRef}></div>
         <Card className="w-full max-w-md shadow-xl border-primary/20 bg-white">
           <CardHeader className="text-center space-y-2">
             <div className="mx-auto bg-primary/10 p-4 rounded-2xl w-fit mb-2">
@@ -106,6 +160,7 @@ export default function CustomerDashboard() {
                   placeholder="مثال: خالد أحمد" 
                   value={formData.customerName}
                   onChange={(e) => setFormData({...formData, customerName: e.target.value})}
+                  required
                 />
               </div>
               <div className="space-y-2">
@@ -119,6 +174,7 @@ export default function CustomerDashboard() {
                     className="pr-10"
                     value={formData.phoneNumber}
                     onChange={(e) => setFormData({...formData, phoneNumber: e.target.value})}
+                    required
                   />
                 </div>
               </div>
@@ -133,15 +189,55 @@ export default function CustomerDashboard() {
                     className="pr-10"
                     value={formData.cylinders}
                     onChange={(e) => setFormData({...formData, cylinders: e.target.value})}
+                    required
                   />
                 </div>
               </div>
-              <Button type="submit" className="w-full h-12 text-lg font-bold mt-6">
-                متابعة للموقع
+              <Button type="submit" disabled={isLoading} className="w-full h-12 text-lg font-bold mt-6">
+                {isLoading ? <Loader2 className="animate-spin ml-2" /> : null}
+                إرسال رمز التحقق
               </Button>
               <Link href="/">
                 <Button variant="ghost" className="w-full mt-2">رجوع</Button>
               </Link>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (step === 'otp') {
+    return (
+      <div className="min-h-screen bg-[#FBF3EE] flex flex-col items-center justify-center p-6">
+        <Card className="w-full max-w-md shadow-xl border-primary/20 bg-white">
+          <CardHeader className="text-center space-y-2">
+            <div className="mx-auto bg-primary/10 p-4 rounded-2xl w-fit mb-2">
+              <ShieldCheck className="w-10 h-10 text-primary" />
+            </div>
+            <CardTitle className="text-2xl font-bold">تأكيد رقم الهاتف</CardTitle>
+            <CardDescription>أدخل الرمز المكون من 6 أرقام المرسل إلى {formData.phoneNumber}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleOtpSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="otp">رمز التحقق</Label>
+                <Input 
+                  id="otp" 
+                  type="text"
+                  maxLength={6}
+                  placeholder="000000" 
+                  className="text-center text-2xl tracking-[1em] h-14"
+                  value={verificationCode}
+                  onChange={(e) => setVerificationCode(e.target.value)}
+                  required
+                />
+              </div>
+              <Button type="submit" disabled={isLoading} className="w-full h-12 text-lg font-bold mt-6">
+                {isLoading ? <Loader2 className="animate-spin ml-2" /> : null}
+                تأكيد الرمز والمتابعة
+              </Button>
+              <Button variant="ghost" className="w-full mt-2" onClick={() => setStep('details')}>تغيير رقم الهاتف</Button>
             </form>
           </CardContent>
         </Card>

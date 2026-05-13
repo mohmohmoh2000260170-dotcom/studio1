@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect } from 'react';
@@ -6,8 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Flame, MapPin, Clock, ArrowRight, Truck, ShoppingCart, Phone, ExternalLink, ShieldAlert } from 'lucide-react';
-import { useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where, orderBy, doc } from 'firebase/firestore';
+import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { collection, query, where, orderBy, getDocs } from 'firebase/firestore';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
@@ -23,7 +22,8 @@ interface GasRequest {
 }
 
 interface DriverInfo {
-  status: 'pending' | 'approved';
+  id: string;
+  status: 'pending' | 'approved' | 'rejected';
   name: string;
 }
 
@@ -31,6 +31,8 @@ export default function DriverDashboard() {
   const router = useRouter();
   const firestore = useFirestore();
   const [driverId, setDriverId] = useState<string | null>(null);
+  const [driverInfo, setDriverInfo] = useState<DriverInfo | null>(null);
+  const [loadingInfo, setLoadingInfo] = useState(true);
 
   useEffect(() => {
     const id = localStorage.getItem('driverId');
@@ -41,12 +43,22 @@ export default function DriverDashboard() {
     }
   }, [router]);
 
-  const driverDocRef = useMemoFirebase(() => {
-    if (!firestore || !driverId) return null;
-    return doc(firestore, "drivers", driverId);
-  }, [firestore, driverId]);
+  // We need to fetch driver info by UID since we use Auth UID now
+  useEffect(() => {
+    if (!firestore || !driverId) return;
 
-  const { data: driverInfo, loading: loadingDriver } = useDoc<DriverInfo>(driverDocRef);
+    const fetchDriver = async () => {
+      const q = query(collection(firestore, "drivers"), where("uid", "==", driverId));
+      const snap = await getDocs(q);
+      if (!snap.empty) {
+        const doc = snap.docs[0];
+        setDriverInfo({ id: doc.id, ...doc.data() } as DriverInfo);
+      }
+      setLoadingInfo(false);
+    };
+
+    fetchDriver();
+  }, [firestore, driverId]);
 
   const requestsQuery = useMemoFirebase(() => {
     if (!firestore || driverInfo?.status !== 'approved') return null;
@@ -63,13 +75,20 @@ export default function DriverDashboard() {
     window.open(`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`, '_blank');
   };
 
-  if (loadingDriver) return (
+  if (loadingInfo) return (
     <div className="min-h-screen flex items-center justify-center">
       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
     </div>
   );
 
-  if (!driverInfo) return null;
+  if (!driverInfo) return (
+    <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center">
+      <h1 className="text-xl font-bold">لم يتم العثور على حسابك</h1>
+      <Link href="/driver/register" className="mt-4">
+        <Button>سجل الآن</Button>
+      </Link>
+    </div>
+  );
 
   if (driverInfo.status === 'pending') {
     return (
@@ -80,8 +99,8 @@ export default function DriverDashboard() {
           </div>
           <h1 className="text-2xl font-bold text-foreground">بانتظار الموافقة</h1>
           <p className="text-muted-foreground leading-relaxed">
-            أهلاً يا {driverInfo.name}. حسابك حالياً قيد المراجعة من قبل الإدارة. 
-            سيتم تفعيل حسابك لتبدأ باستقبال الطلبات فور التأكد من بياناتك.
+            أهلاً يا {driverInfo.name}. تم التحقق من رقم هاتفك بنجاح. 
+            حسابك حالياً قيد المراجعة من قبل الإدارة. سيتم تفعيل حسابك لتبدأ باستقبال الطلبات فور التأكد من بياناتك.
           </p>
           <Link href="/">
             <Button variant="outline" className="w-full">العودة للرئيسية</Button>

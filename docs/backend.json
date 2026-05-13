@@ -1,4 +1,3 @@
-
 {
   "entities": {
     "Driver": {
@@ -10,9 +9,10 @@
         "phone": { "type": "string", "description": "Contact phone number." },
         "companyLicense": { "type": "string", "description": "The official business license number." },
         "status": { "type": "string", "enum": ["pending", "approved", "rejected"], "description": "Current registration status." },
-        "timestamp": { "type": "string", "format": "date-time", "description": "When the registration was created." }
+        "timestamp": { "type": "string", "format": "date-time", "description": "When the registration was created." },
+        "uid": { "type": "string", "description": "The verified Firebase Auth UID." }
       },
-      "required": ["name", "phone", "companyLicense", "status"]
+      "required": ["name", "phone", "companyLicense", "status", "uid"]
     },
     "Request": {
       "title": "Delivery Request",
@@ -25,13 +25,14 @@
         "lat": { "type": "number" },
         "lng": { "type": "number" },
         "status": { "type": "string", "enum": ["pending", "completed"] },
-        "timestamp": { "type": "string", "format": "date-time" }
+        "timestamp": { "type": "string", "format": "date-time" },
+        "uid": { "type": "string", "description": "The verified customer UID." }
       },
-      "required": ["customerName", "phoneNumber", "cylinders", "lat", "lng", "status"]
+      "required": ["customerName", "phoneNumber", "cylinders", "lat", "lng", "status", "uid"]
     }
   },
   "auth": {
-    "providers": ["password"]
+    "providers": ["password", "phone"]
   },
   "firestore": {
     "/drivers/{driverId}": {
