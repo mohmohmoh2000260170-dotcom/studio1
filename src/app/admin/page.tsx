@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState } from 'react';
@@ -17,9 +16,13 @@ export default function AdminLogin() {
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    // Simplified admin check for the prototype
-    if (password === 'admin123') {
+    // Updated admin password check
+    if (password === 'Mhm2210623@') {
       localStorage.setItem('isAdmin', 'true');
+      toast({
+        title: "مرحباً أيها المدير",
+        description: "تم تسجيل الدخول بنجاح.",
+      });
       router.push('/admin/dashboard');
     } else {
       toast({
@@ -58,6 +61,14 @@ export default function AdminLogin() {
             </div>
             <Button type="submit" className="w-full h-12 text-lg font-bold mt-6">
               دخول المشرف
+            </Button>
+            <Button 
+              type="button" 
+              variant="ghost" 
+              className="w-full"
+              onClick={() => router.push('/')}
+            >
+              رجوع للرئيسية
             </Button>
           </form>
         </CardContent>

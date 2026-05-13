@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { User, Truck, Flame } from 'lucide-react';
+import { User, Truck, Flame, ShieldCheck } from 'lucide-react';
 import Image from 'next/image';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 
@@ -10,6 +10,16 @@ export default function Home() {
 
   return (
     <main className="min-h-screen flex flex-col items-center justify-center p-6 bg-background relative overflow-hidden">
+      {/* Admin Button - Floating Top Right */}
+      <div className="absolute top-6 left-6 z-20">
+        <Link href="/admin">
+          <Button variant="outline" className="gap-2 bg-white/50 backdrop-blur hover:bg-white">
+            <ShieldCheck className="w-4 h-4 text-primary" />
+            لوحة الإدارة
+          </Button>
+        </Link>
+      </div>
+
       {/* Background Decorative Elements */}
       <div className="absolute top-0 left-0 w-full h-1/2 bg-gradient-to-b from-primary/10 to-transparent z-0" />
       
